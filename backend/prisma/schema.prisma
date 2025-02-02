@@ -1,0 +1,91 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Sucursal {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  direccion String
+  telefono  String
+  estado    Boolean  @default(true)
+  usuarios  Usuario[]
+  sierras   Sierra[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sucursales")
+}
+
+model Usuario {
+  id          Int        @id @default(autoincrement())
+  email       String     @unique
+  nombre      String
+  password    String
+  rol         Role       @default(OPERADOR)
+  estado      Boolean    @default(true)
+  sucursal    Sucursal   @relation(fields: [sucursalId], references: [id])
+  sucursalId  Int
+  historial   Historial[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("usuarios")
+}
+
+model TipoSierra {
+  id          Int      @id @default(autoincrement())
+  codigo      String   @unique
+  nombre      String
+  descripcion String?
+  estado      Boolean  @default(true)
+  sierras     Sierra[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tipos_sierra")
+}
+
+model Sierra {
+  id                Int        @id @default(autoincrement())
+  codigo            String     @unique
+  tipoSierra        TipoSierra @relation(fields: [tipoSierraId], references: [id])
+  tipoSierraId      Int
+  sucursal          Sucursal   @relation(fields: [sucursalId], references: [id])
+  sucursalId        Int
+  fechaUltimoAfilado DateTime?
+  estado            Boolean    @default(true)
+  historial         Historial[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@map("sierras")
+}
+
+model Historial {
+  id            Int      @id @default(autoincrement())
+  sierra        Sierra   @relation(fields: [sierraId], references: [id])
+  sierraId      Int
+  usuario       Usuario  @relation(fields: [usuarioId], references: [id])
+  usuarioId     Int
+  fecha         DateTime @default(now())
+  tipoAfilado   String
+  observaciones String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("historial")
+}
+
+enum Role {
+  GERENTE
+  JEFE_SUCURSAL
+  OPERADOR
+}
