@@ -126,6 +126,10 @@ export default function ReporteAfiladosPorClientePage() {
         </div>
       </div>
 
+      {showFilters && (
+        <ReporteAfiladosFilters onFilter={handleFilter} />
+      )}
+
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>

@@ -1,4 +1,4 @@
-import { Sucursal } from './sucursal';
+import { Sucursal, SucursalConEmpresa } from './sucursal';
 
 // Definimos los tipos aquí para evitar problemas de importación circular
 export interface TipoSierra {
@@ -31,7 +31,7 @@ export interface Sierra {
 }
 
 export interface SierraConRelaciones extends Sierra {
-  sucursal?: Sucursal;
+  sucursal?: SucursalConEmpresa;
   tipo_sierra?: TipoSierra;
   estado_sierra?: EstadoSierra; // Mantenemos esta propiedad para la relación con estados_sierra
 }

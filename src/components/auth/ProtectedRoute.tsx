@@ -7,9 +7,10 @@ import Loading from '@/components/ui/Loading';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  rolesPermitidos?: string[];
 }
 
-export default function NewProtectedRoute({ children }: ProtectedRouteProps) {
+export default function NewProtectedRoute({ children, rolesPermitidos = [] }: ProtectedRouteProps) {
   const router = useRouter();
   const { user, session, isLoading, userRole } = useAuth();
   const [isChecking, setIsChecking] = useState(true);
@@ -39,13 +40,20 @@ export default function NewProtectedRoute({ children }: ProtectedRouteProps) {
           return;
         }
 
+        // Verificar si el rol del usuario está en la lista de roles permitidos
+        if (rolesPermitidos.length > 0 && !rolesPermitidos.includes(userRole)) {
+          console.log(`NewProtectedRoute: Usuario con rol ${userRole} no tiene permiso para acceder a esta página`);
+          router.replace('/dashboard');
+          return;
+        }
+
         console.log(`NewProtectedRoute: Usuario autenticado con rol ${userRole}, permitiendo acceso`);
         setIsChecking(false);
       }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [isLoading, user, session, userRole, router]);
+  }, [isLoading, user, session, userRole, router, rolesPermitidos]);
 
   // Mostrar loading mientras se verifica la autenticación
   if (isLoading || isChecking) {
