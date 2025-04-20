@@ -36,16 +36,68 @@ export const createClient = () => {
         flowType: 'implicit',
       },
       global: {
-        // Reducir los tiempos de espera para las solicitudes
-        fetch: (url, options) => {
-          const timeout = 10000; // 10 segundos de timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeout);
+        // Implementar sistema de reintentos y manejo mejorado de errores para las solicitudes
+        fetch: async (url, options) => {
+          const MAX_RETRIES = 3;
+          const RETRY_DELAY = 1000; // 1 segundo entre reintentos
+          const TIMEOUT = 15000; // 15 segundos de timeout (aumentado de 10 a 15)
           
-          return fetch(url, {
-            ...options,
-            signal: controller.signal,
-          }).finally(() => clearTimeout(timeoutId));
+          // Función para esperar un tiempo determinado
+          const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+          
+          // Función para realizar un intento de solicitud con timeout
+          const attemptFetch = async () => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+            
+            try {
+              const response = await fetch(url, {
+                ...options,
+                signal: controller.signal,
+                // Asegurarse de que las credenciales se envíen correctamente
+                credentials: 'include',
+                // Asegurarse de que las solicitudes no se cacheen
+                headers: {
+                  ...options?.headers,
+                  'Cache-Control': 'no-cache, no-store, must-revalidate',
+                  'Pragma': 'no-cache',
+                  'X-Client-Info': 'supabase-js/2.x (Vercel-Production)',
+                },
+              });
+              clearTimeout(timeoutId);
+              return response;
+            } catch (error) {
+              clearTimeout(timeoutId);
+              throw error;
+            }
+          };
+          
+          // Intentar la solicitud con reintentos
+          let lastError;
+          for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            try {
+              if (attempt > 0) {
+                console.log(`Reintentando solicitud a ${url} (intento ${attempt + 1}/${MAX_RETRIES})`);
+                // Esperar antes de reintentar, con tiempo exponencial
+                await wait(RETRY_DELAY * Math.pow(2, attempt - 1));
+              }
+              
+              return await attemptFetch();
+            } catch (error: any) {
+              console.error(`Error en solicitud a ${url} (intento ${attempt + 1}/${MAX_RETRIES}):`, error);
+              lastError = error;
+              
+              // Si no es un error de timeout o red, no reintentar
+              if (!(error instanceof DOMException && error.name === 'AbortError') && 
+                  !(error.message && error.message.includes('fetch'))) {
+                throw error;
+              }
+            }
+          }
+          
+          // Si llegamos aquí, todos los intentos fallaron
+          console.error(`Todos los intentos de conexión a ${url} fallaron después de ${MAX_RETRIES} intentos`);
+          throw new Error(`Failed to fetch after ${MAX_RETRIES} attempts: ${lastError?.message || 'Network error'}`);
         },
       },
       realtime: {

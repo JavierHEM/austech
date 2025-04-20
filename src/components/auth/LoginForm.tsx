@@ -86,6 +86,8 @@ export default function LoginForm() {
           throw new Error("Credenciales inválidas. Por favor verifica tu email y contraseña.");
         } else if (error.message?.includes("Email not confirmed")) {
           throw new Error("Correo electrónico no confirmado. Por favor verifica tu bandeja de entrada.");
+        } else if (error.message?.includes("Failed to fetch")) {
+          throw new Error("No se pudo conectar con el servidor de autenticación. Esto puede deberse a problemas de red o a que el servidor está temporalmente no disponible. Por favor, intenta nuevamente más tarde.");
         } else if (error.message?.includes("network") || error.message?.includes("connection")) {
           throw new Error("Error de conexión. Verifica tu conexión a internet e intenta nuevamente.");
         } else {
@@ -109,7 +111,15 @@ export default function LoginForm() {
       
     } catch (error: any) {
       console.error("LoginForm: Error completo:", error);
-      setError(error.message || "Error al iniciar sesión. Por favor intenta nuevamente.");
+      
+      // Manejar específicamente el error "Failed to fetch"
+      if (error.message?.includes("Failed to fetch") || 
+          (error.cause && error.cause.message?.includes("Failed to fetch"))) {
+        setError("Error de conexión: No se pudo conectar con el servidor. Verifica tu conexión a internet y que las variables de entorno de Supabase estén correctamente configuradas en Vercel.");
+      } else {
+        setError(error.message || "Error al iniciar sesión. Por favor intenta nuevamente.");
+      }
+      
       // Asegurarse de que isLoading se establezca en false en caso de error
       setIsLoading(false);
       
@@ -131,7 +141,7 @@ export default function LoginForm() {
         {error && (
           <div className="mb-4 bg-red-50 dark:bg-red-900/10 p-4 rounded-md">
             <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-            {(error.includes('tardando demasiado') || error.includes('conexión') || error.includes('servidor')) && (
+            {(error.includes('tardando demasiado') || error.includes('conexión') || error.includes('servidor') || error.includes('Failed to fetch')) && (
               <div className="mt-2 flex flex-col space-y-2">
                 <button 
                   onClick={() => window.location.reload()} 
@@ -142,6 +152,17 @@ export default function LoginForm() {
                   </svg>
                   Recargar página
                 </button>
+                {error.includes('Failed to fetch') && (
+                  <div className="mt-1 p-2 bg-yellow-50 dark:bg-yellow-900/10 rounded-md">
+                    <p className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">
+                      Sugerencia: Verifica que las variables de entorno de Supabase estén correctamente configuradas en Vercel:
+                    </p>
+                    <ul className="text-xs text-yellow-600 dark:text-yellow-500 list-disc list-inside mt-1">
+                      <li>NEXT_PUBLIC_SUPABASE_URL</li>
+                      <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+                    </ul>
+                  </div>
+                )}
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Si el problema persiste, contacta al administrador del sistema.
                 </p>
