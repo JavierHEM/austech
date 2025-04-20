@@ -218,7 +218,7 @@ export default function DashboardLayout({
                               href={item.href}
                               className={cn(
                                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
-                                item.isActive(pathname) ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground"
+                                pathname && item.isActive(pathname) ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground"
                               )}
                             >
                               {item.icon}
@@ -266,7 +266,7 @@ export default function DashboardLayout({
                                   onClick={toggleSidebar}
                                   className={cn(
                                     "flex items-center gap-2 rounded-lg px-2 py-1 text-sm transition-all hover:bg-accent",
-                                    item.isActive(pathname) ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground"
+                                    pathname && item.isActive(pathname) ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground"
                                   )}
                                 >
                                   {item.icon}
