@@ -145,41 +145,41 @@ export default function Navbar() {
       {isOpen && (
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <MobileNavLink href="/dashboard" current={pathname === '/dashboard'}>
+            <MobileNavLink href="/dashboard" current={pathname ? pathname === '/dashboard' : false}>
               Dashboard
             </MobileNavLink>
             
             {(isAdministrador || isGerente) && (
               <>
-                <MobileNavLink href="/empresas" current={pathname.startsWith('/empresas')}>
+                <MobileNavLink href="/empresas" current={pathname ? pathname.startsWith('/empresas') : false}>
                   Empresas
                 </MobileNavLink>
-                <MobileNavLink href="/sucursales" current={pathname.startsWith('/sucursales')}>
+                <MobileNavLink href="/sucursales" current={pathname ? pathname.startsWith('/sucursales') : false}>
                   Sucursales
                 </MobileNavLink>
-                <MobileNavLink href="/sierras" current={pathname.startsWith('/sierras')}>
+                <MobileNavLink href="/sierras" current={pathname ? pathname.startsWith('/sierras') : false}>
                   Sierras
                 </MobileNavLink>
               </>
             )}
             
-            <MobileNavLink href="/afilados" current={pathname.startsWith('/afilados')}>
+            <MobileNavLink href="/afilados" current={pathname ? pathname.startsWith('/afilados') : false}>
               Afilados
             </MobileNavLink>
             
             {(isAdministrador || isGerente) && (
               <>
-                <MobileNavLink href="/salidas-masivas" current={pathname.startsWith('/salidas-masivas')}>
+                <MobileNavLink href="/salidas-masivas" current={pathname ? pathname.startsWith('/salidas-masivas') : false}>
                   Salidas Masivas
                 </MobileNavLink>
-                <MobileNavLink href="/bajas-masivas" current={pathname.startsWith('/bajas-masivas')}>
+                <MobileNavLink href="/bajas-masivas" current={pathname ? pathname.startsWith('/bajas-masivas') : false}>
                   Bajas Masivas
                 </MobileNavLink>
               </>
             )}
             
             {isAdministrador && (
-              <MobileNavLink href="/usuarios" current={pathname.startsWith('/usuarios')}>
+              <MobileNavLink href="/usuarios" current={pathname ? pathname.startsWith('/usuarios') : false}>
                 Usuarios
               </MobileNavLink>
             )}
