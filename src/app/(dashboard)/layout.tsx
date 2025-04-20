@@ -31,7 +31,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
-  isActive: (pathname: string) => boolean;
+  isActive: (pathname: string | null) => boolean;
 }
 
 // Definición de categorías para el menú
@@ -49,37 +49,37 @@ const navCategories: NavCategory[] = [
         label: 'Inicio',
         href: '/dashboard',
         icon: <Home className="h-5 w-5" />,
-        isActive: (pathname) => pathname === '/dashboard'
+        isActive: (pathname) => pathname ? pathname === '/dashboard' : false
       },
       {
         label: 'Empresas',
         href: '/empresas',
         icon: <Building className="h-5 w-5" />,
-        isActive: (pathname) => pathname.startsWith('/empresas')
+        isActive: (pathname) => pathname ? pathname.startsWith('/empresas') : false
       },
       {
         label: 'Sucursales',
         href: '/sucursales',
         icon: <Map className="h-5 w-5" />,
-        isActive: (pathname) => pathname.startsWith('/sucursales')
+        isActive: (pathname) => pathname ? pathname.startsWith('/sucursales') : false
       },
       {
         label: 'Sierras',
         href: '/sierras',
         icon: <Scissors className="h-5 w-5" />,
-        isActive: (pathname) => pathname.startsWith('/sierras') && pathname !== '/sierras/buscar' && !pathname.startsWith('/tipos-sierra')
+        isActive: (pathname) => pathname ? (pathname.startsWith('/sierras') && pathname !== '/sierras/buscar' && !pathname.startsWith('/tipos-sierra')) : false
       },
       {
         label: 'Buscar Sierra',
         href: '/sierras/buscar',
         icon: <Barcode className="h-5 w-5" />,
-        isActive: (pathname) => pathname === '/sierras/buscar'
+        isActive: (pathname) => pathname ? pathname === '/sierras/buscar' : false
       },
       {
         label: 'Afilados',
         href: '/afilados',
         icon: <Scissors className="h-5 w-5 rotate-180" />,
-        isActive: (pathname) => pathname.startsWith('/afilados')
+        isActive: (pathname) => pathname ? pathname.startsWith('/afilados') : false
       }
     ]
   },
@@ -90,13 +90,13 @@ const navCategories: NavCategory[] = [
         label: 'Salidas Masivas',
         href: '/salidas-masivas',
         icon: <ArrowDownToLine className="h-5 w-5" />,
-        isActive: (pathname) => pathname.startsWith('/salidas-masivas')
+        isActive: (pathname) => pathname ? pathname.startsWith('/salidas-masivas') : false
       },
       {
         label: 'Bajas Masivas',
         href: '/bajas-masivas',
         icon: <XCircle className="h-5 w-5" />,
-        isActive: (pathname) => pathname.startsWith('/bajas-masivas')
+        isActive: (pathname) => pathname ? pathname.startsWith('/bajas-masivas') : false
       }
     ]
   },
@@ -107,7 +107,7 @@ const navCategories: NavCategory[] = [
         label: 'Afilados por Cliente',
         href: '/reportes/afilados-por-cliente',
         icon: <FileSpreadsheet className="h-5 w-5" />,
-        isActive: (pathname) => pathname.startsWith('/reportes/afilados-por-cliente')
+        isActive: (pathname) => pathname ? pathname.startsWith('/reportes/afilados-por-cliente') : false
       }
     ]
   },
@@ -118,13 +118,13 @@ const navCategories: NavCategory[] = [
         label: 'Tipos de Sierra',
         href: '/tipos-sierra',
         icon: <Scissors className="h-5 w-5 rotate-45" />,
-        isActive: (pathname) => pathname.startsWith('/tipos-sierra')
+        isActive: (pathname) => pathname ? pathname.startsWith('/tipos-sierra') : false
       },
       {
         label: 'Tipos de Afilado',
         href: '/tipos-afilado',
         icon: <Scissors className="h-5 w-5 rotate-90" />,
-        isActive: (pathname) => pathname.startsWith('/tipos-afilado')
+        isActive: (pathname) => pathname ? pathname.startsWith('/tipos-afilado') : false
       }
     ]
   },
@@ -135,7 +135,7 @@ const navCategories: NavCategory[] = [
         label: 'Usuarios',
         href: '/usuarios',
         icon: <Users className="h-5 w-5" />,
-        isActive: (pathname) => pathname.startsWith('/usuarios')
+        isActive: (pathname) => pathname ? pathname.startsWith('/usuarios') : false
       }
     ]
   }
