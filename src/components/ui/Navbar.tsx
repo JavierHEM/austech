@@ -72,41 +72,41 @@ export default function Navbar() {
             
             {/* Links de navegación - Versión desktop */}
             <div className="hidden md:ml-6 md:flex md:space-x-4 md:items-center">
-              <NavLink href="/dashboard" current={pathname === '/dashboard'}>
+              <NavLink href="/dashboard" current={pathname ? pathname === '/dashboard' : false}>
                 Dashboard
               </NavLink>
               
               {(isAdministrador || isGerente) && (
                 <>
-                  <NavLink href="/empresas" current={pathname.startsWith('/empresas')}>
+                  <NavLink href="/empresas" current={pathname ? pathname.startsWith('/empresas') : false}>
                     Empresas
                   </NavLink>
-                  <NavLink href="/sucursales" current={pathname.startsWith('/sucursales')}>
+                  <NavLink href="/sucursales" current={pathname ? pathname.startsWith('/sucursales') : false}>
                     Sucursales
                   </NavLink>
-                  <NavLink href="/sierras" current={pathname.startsWith('/sierras')}>
+                  <NavLink href="/sierras" current={pathname ? pathname.startsWith('/sierras') : false}>
                     Sierras
                   </NavLink>
                 </>
               )}
               
-              <NavLink href="/afilados" current={pathname.startsWith('/afilados')}>
+              <NavLink href="/afilados" current={pathname ? pathname.startsWith('/afilados') : false}>
                 Afilados
               </NavLink>
               
               {(isAdministrador || isGerente) && (
                 <>
-                  <NavLink href="/salidas-masivas" current={pathname.startsWith('/salidas-masivas')}>
+                  <NavLink href="/salidas-masivas" current={pathname ? pathname.startsWith('/salidas-masivas') : false}>
                     Salidas Masivas
                   </NavLink>
-                  <NavLink href="/bajas-masivas" current={pathname.startsWith('/bajas-masivas')}>
+                  <NavLink href="/bajas-masivas" current={pathname ? pathname.startsWith('/bajas-masivas') : false}>
                     Bajas Masivas
                   </NavLink>
                 </>
               )}
               
               {isAdministrador && (
-                <NavLink href="/usuarios" current={pathname.startsWith('/usuarios')}>
+                <NavLink href="/usuarios" current={pathname ? pathname.startsWith('/usuarios') : false}>
                   Usuarios
                 </NavLink>
               )}
