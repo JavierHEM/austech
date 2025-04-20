@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Session, User, AuthError } from '@supabase/supabase-js';
 import { createClient } from '../lib/supabase';
@@ -18,11 +18,13 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   userRole: UserRole;
+  authError: Error | null;
   signIn: (email: string, password: string) => Promise<{
     error: AuthError | null;
     data: { user: User | null; session: Session | null };
   }>;
   signOut: () => Promise<void>;
+  resetAuthState: () => void;
 }
 
 // Valor predeterminado para el contexto
@@ -31,8 +33,10 @@ const defaultContext: AuthContextType = {
   session: null,
   isLoading: true,
   userRole: null,
+  authError: null,
   signIn: async () => ({ error: null, data: { user: null, session: null } }),
-  signOut: async () => {}
+  signOut: async () => {},
+  resetAuthState: () => {}
 };
 
 // Crear el contexto
@@ -57,8 +61,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userRole, setUserRole] = useState<UserRole>(null);
+  const [authError, setAuthError] = useState<Error | null>(null);
+  const [sessionCheckAttempts, setSessionCheckAttempts] = useState(0);
+  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  
+  // Función para reiniciar el estado de autenticación
+  const resetAuthState = () => {
+    setUser(null);
+    setSession(null);
+    setUserRole(null);
+    setAuthError(null);
+    setIsLoading(false);
+    setSessionCheckAttempts(0);
+    console.log('Estado de autenticación reiniciado');
+  };
 
   // Función para obtener el rol del usuario
   const getUserRole = async (userId: string): Promise<UserRole> => {
@@ -87,14 +105,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Efecto para verificar la sesión al cargar
   useEffect(() => {
+    // Limpiar cualquier timeout previo
+    if (sessionTimeoutRef.current) {
+      clearTimeout(sessionTimeoutRef.current);
+    }
+    
+    // Establecer un timeout para la verificación de sesión
+    sessionTimeoutRef.current = setTimeout(() => {
+      if (isLoading && sessionCheckAttempts > 0) {
+        console.error('Tiempo de espera agotado al verificar la sesión');
+        setAuthError(new Error('Tiempo de espera agotado al verificar la sesión'));
+        setIsLoading(false);
+      }
+    }, 8000); // 8 segundos de timeout
+    
     const checkSession = async () => {
       try {
-        console.log('Verificando sesión...');
+        // Incrementar el contador de intentos
+        setSessionCheckAttempts(prev => prev + 1);
+        console.log(`Verificando sesión... (intento ${sessionCheckAttempts + 1})`);
+        
+        // Limpiar errores anteriores
+        setAuthError(null);
+        
         // Obtener la sesión actual
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error al obtener la sesión:', error);
+          setAuthError(error);
           throw error;
         }
 
@@ -105,10 +144,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(data.session);
           setUser(data.session.user);
           
-          // Obtener el rol del usuario
-          const role = await getUserRole(data.session.user.id);
-          setUserRole(role);
-          console.log('Rol del usuario:', role);
+          try {
+            // Obtener el rol del usuario
+            const role = await getUserRole(data.session.user.id);
+            setUserRole(role);
+            console.log('Rol del usuario:', role);
+          } catch (roleError) {
+            console.error('Error al obtener rol del usuario:', roleError);
+            // No bloqueamos la autenticación por un error en la obtención del rol
+          }
           
           // Programar renovación de token antes de que expire
           const expiresAt = data.session.expires_at;
@@ -132,9 +176,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } else {
           console.log('No hay sesión activa');
+          // Asegurarse de que el estado esté limpio
+          setSession(null);
+          setUser(null);
+          setUserRole(null);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al verificar la sesión:', error);
+        // Guardar el error para mostrarlo en la UI
+        setAuthError(error);
         // Asegurarse de que los errores no bloqueen la aplicación
         setSession(null);
         setUser(null);
@@ -142,10 +192,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } finally {
         // Siempre establecer isLoading en false para evitar que se quede cargando indefinidamente
         setIsLoading(false);
+        // Limpiar el timeout
+        if (sessionTimeoutRef.current) {
+          clearTimeout(sessionTimeoutRef.current);
+          sessionTimeoutRef.current = null;
+        }
       }
     };
+    
+    // Solo verificar la sesión si estamos cargando
+    if (isLoading) {
+      checkSession();
+    }
+    
+    return () => {
+      if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+      }
+    };
+  }, [isLoading, sessionCheckAttempts]);
 
-    // Configurar el listener para cambios de autenticación
+  // Configurar el listener para cambios de autenticación
+  useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         console.log('Cambio de estado de autenticación:', { event, newSession });
@@ -155,11 +223,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(newSession.user);
           
           // Obtener el rol del usuario
-          const role = await getUserRole(newSession.user.id);
-          setUserRole(role);
-          
-          if (event === 'SIGNED_IN') {
-            router.push('/dashboard');
+          try {
+            const role = await getUserRole(newSession.user.id);
+            setUserRole(role);
+            
+            if (event === 'SIGNED_IN') {
+              router.push('/dashboard');
+            }
+          } catch (error) {
+            console.error('Error al obtener rol después de cambio de autenticación:', error);
           }
         } else {
           setSession(null);
@@ -173,9 +245,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Verificar la sesión al cargar
-    checkSession();
-
     // Limpiar el listener al desmontar
     return () => {
       authListener.subscription.unsubscribe();
@@ -185,12 +254,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Función para iniciar sesión
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
+    setAuthError(null);
+    
     try {
       console.log('Intentando iniciar sesión con email:', email);
       
       // Validar entrada
       if (!email || !password) {
         console.error('Email o contraseña vacíos');
+        setIsLoading(false);
         return { 
           error: new Error('Email y contraseña son requeridos') as AuthError, 
           data: { user: null, session: null } 
@@ -267,8 +339,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           session: data.session 
         } 
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error inesperado en inicio de sesión:', error);
+      setAuthError(error);
       toast({
         title: 'Error de conexión',
         description: 'Hubo un problema al conectar con el servidor. Verifica tu conexión e intenta nuevamente.',
@@ -285,11 +358,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para cerrar sesión
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setUserRole(null);
-    router.push('/login');
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      setUserRole(null);
+      router.push('/login');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      toast({
+        title: 'Error al cerrar sesión',
+        description: 'Hubo un problema al cerrar tu sesión. Intenta nuevamente.',
+        variant: 'destructive'
+      });
+    }
   };
 
   // Valor del contexto
@@ -298,8 +380,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     isLoading,
     userRole,
+    authError,
     signIn,
     signOut,
+    resetAuthState,
   };
 
   return (

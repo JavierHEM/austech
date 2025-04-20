@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -8,15 +8,55 @@ export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);  // Añadido estado de carga
+  const [isLoading, setIsLoading] = useState(false);
+  const loginTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  const { signIn } = useAuth();
+  const { signIn, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  
+  // Limpiar cualquier timeout al desmontar el componente
+  useEffect(() => {
+    return () => {
+      if (loginTimeoutRef.current) {
+        clearTimeout(loginTimeoutRef.current);
+      }
+    };
+  }, []);
+  
+  // Efecto para detectar si el contexto de autenticación está cargando por mucho tiempo
+  useEffect(() => {
+    // Si el contexto de autenticación está cargando por más de 10 segundos, mostrar un error
+    if (authLoading) {
+      loginTimeoutRef.current = setTimeout(() => {
+        console.error('Tiempo de espera agotado para la autenticación');
+        setError('El servidor está tardando demasiado en responder. Por favor, recarga la página e intenta nuevamente.');
+        // Forzar el estado de carga a false
+        setIsLoading(false);
+      }, 10000); // 10 segundos de timeout
+      
+      return () => {
+        if (loginTimeoutRef.current) {
+          clearTimeout(loginTimeoutRef.current);
+        }
+      };
+    }
+  }, [authLoading]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    
+    // Establecer un timeout para evitar que el login se quede cargando indefinidamente
+    if (loginTimeoutRef.current) {
+      clearTimeout(loginTimeoutRef.current);
+    }
+    
+    loginTimeoutRef.current = setTimeout(() => {
+      console.error("LoginForm: Tiempo de espera agotado");
+      setError("El inicio de sesión está tardando demasiado. Por favor, intenta nuevamente más tarde.");
+      setIsLoading(false);
+    }, 15000); // 15 segundos de timeout
     
     try {
       console.log("LoginForm: Iniciando proceso de login");
@@ -30,6 +70,12 @@ export default function LoginForm() {
       console.log("LoginForm: Llamando a signIn");
       const { error, data } = await signIn(email, password);
       console.log("LoginForm: Respuesta de signIn recibida", { error: !!error, data: !!data });
+      
+      // Limpiar el timeout ya que recibimos una respuesta
+      if (loginTimeoutRef.current) {
+        clearTimeout(loginTimeoutRef.current);
+        loginTimeoutRef.current = null;
+      }
       
       if (error) {
         console.error("LoginForm: Error de autenticación:", error);
@@ -65,6 +111,12 @@ export default function LoginForm() {
       setError(error.message || "Error al iniciar sesión. Por favor intenta nuevamente.");
       // Asegurarse de que isLoading se establezca en false en caso de error
       setIsLoading(false);
+      
+      // Limpiar el timeout en caso de error
+      if (loginTimeoutRef.current) {
+        clearTimeout(loginTimeoutRef.current);
+        loginTimeoutRef.current = null;
+      }
     } finally {
       // Este finally puede no ejecutarse si hay una redirección, así que también
       // establecemos isLoading en false en el bloque catch
@@ -78,6 +130,14 @@ export default function LoginForm() {
         {error && (
           <div className="mb-4 bg-red-50 dark:bg-red-900/10 p-4 rounded-md">
             <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+            {error.includes('tardando demasiado') && (
+              <button 
+                onClick={() => window.location.reload()} 
+                className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                Recargar página
+              </button>
+            )}
           </div>
         )}
         <form className="space-y-6" onSubmit={handleSubmit}>
