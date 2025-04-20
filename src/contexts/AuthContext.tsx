@@ -57,16 +57,43 @@ const mapRoleIdToName = (roleId: number): UserRole => {
 
 // Proveedor de autenticación
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [userRole, setUserRole] = useState<UserRole>(null);
-  const [authError, setAuthError] = useState<Error | null>(null);
-  const [sessionCheckAttempts, setSessionCheckAttempts] = useState(0);
-  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const router = useRouter();
   const { toast } = useToast();
   
+  // Estado para la sesión y el usuario
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRole>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<Error | null>(null);
+  const [sessionCheckAttempts, setSessionCheckAttempts] = useState(0);
+  
+  // Referencia para el timeout de verificación de sesión
+  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Verificar si estamos en modo desarrollo
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  // Modo de desarrollo local sin Supabase
+  const devModeEnabled = isDevelopment && (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  
+  // Datos simulados para desarrollo local
+  const mockUser = {
+    id: 'dev-user-id',
+    email: 'dev@example.com',
+    user_metadata: {
+      name: 'Usuario Desarrollo',
+      role: 'administrador'
+    }
+  };
+  
+  const mockSession = {
+    user: mockUser,
+    access_token: 'mock-token',
+    refresh_token: 'mock-refresh-token',
+    expires_at: Date.now() + 3600
+  };
+
   // Función para reiniciar el estado de autenticación
   const resetAuthState = () => {
     setUser(null);
@@ -80,8 +107,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para obtener el rol del usuario
   const getUserRole = async (userId: string): Promise<UserRole> => {
+    // Si estamos en modo desarrollo sin Supabase, usar datos simulados
+    if (devModeEnabled) {
+      console.log('Modo desarrollo sin Supabase: usando datos simulados');
+      return 'administrador';
+    }
+    
     try {
       console.log('Consultando rol para el usuario con ID:', userId);
+      console.log('Verificando cliente de Supabase:', supabase ? 'Cliente inicializado' : 'Cliente no inicializado');
+      
+      // Verificar si tenemos las variables de entorno necesarias
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      console.log('NEXT_PUBLIC_SUPABASE_URL disponible:', !!supabaseUrl);
+      console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY disponible:', !!supabaseKey);
       
       // Obtener el rol de la tabla usuarios
       const { data, error } = await supabase
@@ -91,7 +131,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       
       if (error) {
-        console.error('Error al obtener el rol del usuario:', error);
+        console.error('Error al obtener el rol del usuario:', JSON.stringify(error));
+        // Si no hay datos, asignar un rol por defecto para desarrollo local
+        if (isDevelopment) {
+          console.log('Modo desarrollo: asignando rol de administrador por defecto');
+          return 'administrador';
+        }
         return null;
       }
 
@@ -99,12 +144,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return mapRoleIdToName(data?.rol_id);
     } catch (error) {
       console.error('Error al consultar el rol:', error);
+      // Si estamos en desarrollo, asignar un rol por defecto
+      if (isDevelopment) {
+        console.log('Modo desarrollo: asignando rol de administrador por defecto');
+        return 'administrador';
+      }
       return null;
     }
   };
 
   // Efecto para verificar la sesión al cargar
   useEffect(() => {
+    // Si estamos en modo desarrollo sin Supabase, usar datos simulados
+    if (devModeEnabled) {
+      console.log('Modo desarrollo sin Supabase: usando datos simulados');
+      setUser(mockUser as any);
+      setSession(mockSession as any);
+      setUserRole('administrador');
+      setIsLoading(false);
+      return;
+    }
+    
     // Limpiar cualquier timeout previo
     if (sessionTimeoutRef.current) {
       clearTimeout(sessionTimeoutRef.current);
@@ -116,6 +176,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Tiempo de espera agotado al verificar la sesión');
         setAuthError(new Error('Tiempo de espera agotado al verificar la sesión'));
         setIsLoading(false);
+        
+        // En desarrollo, usar datos simulados si hay timeout
+        if (isDevelopment) {
+          console.log('Modo desarrollo: usando datos simulados debido a timeout');
+          setUser(mockUser as any);
+          setSession(mockSession as any);
+          setUserRole('administrador');
+        }
       }
     }, 8000); // 8 segundos de timeout
     
@@ -134,6 +202,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) {
           console.error('Error al obtener la sesión:', error);
           setAuthError(error);
+          
+          // En desarrollo, usar datos simulados si hay error
+          if (isDevelopment) {
+            console.log('Modo desarrollo: usando datos simulados debido a error');
+            setUser(mockUser as any);
+            setSession(mockSession as any);
+            setUserRole('administrador');
+            setIsLoading(false);
+            return;
+          }
+          
           throw error;
         }
 
@@ -150,67 +229,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserRole(role);
             console.log('Rol del usuario:', role);
           } catch (roleError) {
-            console.error('Error al obtener rol del usuario:', roleError);
-            // No bloqueamos la autenticación por un error en la obtención del rol
-          }
-          
-          // Programar renovación de token antes de que expire
-          const expiresAt = data.session.expires_at;
-          if (expiresAt) {
-            const expiresIn = expiresAt * 1000 - Date.now();
-            const refreshTime = Math.max(expiresIn - 60000, 0); // Renovar 1 minuto antes de que expire
-            console.log(`Programando renovación de token en ${refreshTime / 1000} segundos`);
+            console.error('Error al obtener el rol del usuario:', roleError);
             
-            // Renovar token antes de que expire
-            if (refreshTime > 0 && refreshTime < 3600000) { // Solo si expira en menos de 1 hora
-              setTimeout(async () => {
-                console.log('Renovando token de sesión...');
-                const { error: refreshError } = await supabase.auth.refreshSession();
-                if (refreshError) {
-                  console.error('Error al renovar sesión:', refreshError);
-                } else {
-                  console.log('Token de sesión renovado exitosamente');
-                }
-              }, refreshTime);
+            // En desarrollo, asignar rol por defecto si hay error
+            if (isDevelopment) {
+              console.log('Modo desarrollo: asignando rol de administrador por defecto');
+              setUserRole('administrador');
+            } else {
+              setUserRole(null);
             }
           }
         } else {
           console.log('No hay sesión activa');
-          // Asegurarse de que el estado esté limpio
-          setSession(null);
-          setUser(null);
-          setUserRole(null);
+          
+          // En desarrollo, usar datos simulados si no hay sesión
+          if (isDevelopment) {
+            console.log('Modo desarrollo: usando datos simulados para sesión no encontrada');
+            setUser(mockUser as any);
+            setSession(mockSession as any);
+            setUserRole('administrador');
+          } else {
+            setSession(null);
+            setUser(null);
+            setUserRole(null);
+          }
         }
-      } catch (error: any) {
+      } catch (error) {
         console.error('Error al verificar la sesión:', error);
-        // Guardar el error para mostrarlo en la UI
-        setAuthError(error);
-        // Asegurarse de que los errores no bloqueen la aplicación
-        setSession(null);
-        setUser(null);
-        setUserRole(null);
       } finally {
-        // Siempre establecer isLoading en false para evitar que se quede cargando indefinidamente
-        setIsLoading(false);
-        // Limpiar el timeout
+        // Limpiar el timeout ya que hemos completado la verificación
         if (sessionTimeoutRef.current) {
           clearTimeout(sessionTimeoutRef.current);
           sessionTimeoutRef.current = null;
         }
+        
+        setIsLoading(false);
       }
     };
     
-    // Solo verificar la sesión si estamos cargando
-    if (isLoading) {
-      checkSession();
-    }
+    checkSession();
     
+    // Limpiar el timeout al desmontar
     return () => {
       if (sessionTimeoutRef.current) {
         clearTimeout(sessionTimeoutRef.current);
       }
     };
-  }, [isLoading, sessionCheckAttempts]);
+  }, []);
 
   // Configurar el listener para cambios de autenticación
   useEffect(() => {
@@ -358,19 +423,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Función para cerrar sesión
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
+    // Si estamos en modo desarrollo sin Supabase, simular cierre de sesión
+    if (devModeEnabled) {
+      console.log('Modo desarrollo sin Supabase: simulando cierre de sesión');
+      setIsLoading(true);
+      
+      // Simular un retraso para que parezca real
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Limpiar el estado
       setSession(null);
+      setUser(null);
       setUserRole(null);
-      router.push('/login');
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Error al cerrar sesión:', error);
+        
+        // En desarrollo, forzar cierre de sesión incluso con error
+        if (isDevelopment) {
+          console.log('Modo desarrollo: forzando cierre de sesión a pesar del error');
+          setSession(null);
+          setUser(null);
+          setUserRole(null);
+          return;
+        }
+        
+        throw error;
+      }
+      
+      // Limpiar el estado
+      setSession(null);
+      setUser(null);
+      setUserRole(null);
     } catch (error) {
-      console.error('Error al cerrar sesión:', error);
-      toast({
-        title: 'Error al cerrar sesión',
-        description: 'Hubo un problema al cerrar tu sesión. Intenta nuevamente.',
-        variant: 'destructive'
-      });
+      console.error('Error en signOut:', error);
+      
+      // En desarrollo, forzar cierre de sesión incluso con error
+      if (isDevelopment) {
+        console.log('Modo desarrollo: forzando cierre de sesión a pesar del error');
+        setSession(null);
+        setUser(null);
+        setUserRole(null);
+      } else {
+        throw error;
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
