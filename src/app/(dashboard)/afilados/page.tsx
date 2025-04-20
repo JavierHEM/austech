@@ -54,13 +54,16 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createClient } from '@/lib/supabase';
-import { getAfilados, deleteAfilado, AfiladoFilters } from '@/services/afiladoService';
+import { getAfilados, deleteAfilado, AfiladoFilters, PaginatedAfilados } from '@/services/afiladoService';
 import AfiladoFiltersComponent from '@/components/afilados/AfiladoFilters';
 
 export default function AfiladosPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [afilados, setAfilados] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
   const [afiladoToDelete, setAfiladoToDelete] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -73,8 +76,15 @@ export default function AfiladosPage() {
   const loadAfilados = async () => {
     setLoading(true);
     try {
-      const data = await getAfilados(filters);
-      setAfilados(data || []);
+      const result: PaginatedAfilados = await getAfilados(
+        filters,
+        currentPage,
+        pageSize,
+        sortField,
+        sortDirection
+      );
+      setAfilados(result.data || []);
+      setTotalCount(result.count);
     } catch (error) {
       console.error('Error al cargar afilados:', error);
       toast({
@@ -87,10 +97,10 @@ export default function AfiladosPage() {
     }
   };
 
-  // Cargar afilados al montar el componente o cuando cambian los filtros
+  // Cargar afilados al montar el componente o cuando cambian los filtros, página o ordenamiento
   useEffect(() => {
     loadAfilados();
-  }, [filters]);
+  }, [filters, currentPage, pageSize, sortField, sortDirection]);
 
   // Manejar eliminación de afilado
   const handleDeleteAfilado = async () => {
@@ -131,38 +141,19 @@ export default function AfiladosPage() {
       setSortField(field);
       setSortDirection('asc');
     }
-    
-    // Ordenar la lista de afilados
-    const sortedAfilados = [...afilados].sort((a, b) => {
-      let valueA, valueB;
-      
-      // Manejar campos anidados
-      if (field === 'sierra_codigo') {
-        valueA = a.sierra?.codigo_barra || '';
-        valueB = b.sierra?.codigo_barra || '';
-      } else if (field === 'tipo_afilado_nombre') {
-        valueA = a.tipo_afilado?.nombre || '';
-        valueB = b.tipo_afilado?.nombre || '';
-      } else {
-        valueA = a[field];
-        valueB = b[field];
-      }
-      
-      // Comparar fechas
-      if (field.includes('fecha')) {
-        valueA = valueA ? new Date(valueA).getTime() : 0;
-        valueB = valueB ? new Date(valueB).getTime() : 0;
-      }
-      
-      // Ordenar
-      if (sortDirection === 'asc') {
-        return valueA > valueB ? 1 : -1;
-      } else {
-        return valueA < valueB ? 1 : -1;
-      }
-    });
-    
-    setAfilados(sortedAfilados);
+    // La ordenación ahora se maneja en el servidor
+    // y se recarga automáticamente por el useEffect
+  };
+  
+  // Manejar cambio de página
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+  
+  // Manejar cambio de tamaño de página
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1); // Resetear a la primera página cuando cambia el tamaño
   };
 
   return (
@@ -431,9 +422,45 @@ export default function AfiladosPage() {
           )}
         </CardContent>
         {!loading && afilados.length > 0 && (
-          <CardFooter>
+          <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="text-sm text-muted-foreground">
-              Mostrando {afilados.length} afilados
+              Mostrando {afilados.length} de {totalCount} afilados
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Filas por página:</span>
+                <select 
+                  className="border rounded p-1 text-sm" 
+                  value={pageSize} 
+                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                >
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                <span className="text-sm">
+                  Página {currentPage} de {Math.ceil(totalCount / pageSize)}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= Math.ceil(totalCount / pageSize)}
+                >
+                  Siguiente
+                </Button>
+              </div>
             </div>
           </CardFooter>
         )}

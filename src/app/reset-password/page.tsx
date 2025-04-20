@@ -1,14 +1,23 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-interface PasswordResetProps {
-  userEmail: string;
-  onClose: () => void;
-}
-
-export default function PasswordReset({ userEmail, onClose }: PasswordResetProps) {
+export default function PasswordResetPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [userEmail, setUserEmail] = useState<string>('');
+  
+  // Obtener el email del usuario de los parámetros de búsqueda o usar un valor por defecto
+  useEffect(() => {
+    const email = searchParams.get('email') || '';
+    setUserEmail(email);
+  }, [searchParams]);
+  
+  const onClose = () => {
+    router.push('/');
+  };
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);

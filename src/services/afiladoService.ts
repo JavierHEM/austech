@@ -5,10 +5,60 @@ import { SierraConRelaciones } from '@/types/sierra';
 const supabase = createClient();
 
 /**
- * Obtiene todos los afilados con sus relaciones
+ * Interfaz para la respuesta paginada de afilados
  */
-export const getAfilados = async (filters?: AfiladoFilters): Promise<AfiladoConRelaciones[]> => {
+export interface PaginatedAfilados {
+  data: AfiladoConRelaciones[];
+  count: number;
+}
+
+/**
+ * Obtiene los afilados con sus relaciones con soporte para paginación
+ */
+export const getAfilados = async (
+  filters?: AfiladoFilters, 
+  page: number = 1, 
+  pageSize: number = 10,
+  sortField: string = 'fecha_afilado',
+  sortDirection: 'asc' | 'desc' = 'desc'
+): Promise<PaginatedAfilados> => {
   try {
+    // Primero obtenemos el conteo total para la paginación
+    let countQuery = supabase
+      .from('afilados')
+      .select('id', { count: 'exact' });
+    
+    // Aplicar filtros al conteo si existen
+    if (filters) {
+      if (filters.sierra_id) {
+        countQuery = countQuery.eq('sierra_id', filters.sierra_id);
+      }
+      
+      if (filters.tipo_afilado_id) {
+        countQuery = countQuery.eq('tipo_afilado_id', filters.tipo_afilado_id);
+      }
+      
+      if (filters.fecha_desde) {
+        countQuery = countQuery.gte('fecha_afilado', filters.fecha_desde);
+      }
+      
+      if (filters.fecha_hasta) {
+        countQuery = countQuery.lte('fecha_afilado', filters.fecha_hasta);
+      }
+    }
+    
+    const { count: totalCount, error: countError } = await countQuery;
+    
+    if (countError) {
+      console.error('Error al obtener conteo de afilados:', countError);
+      throw new Error(countError.message);
+    }
+    
+    // Calcular el rango para la paginación
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    
+    // Consulta principal con paginación
     let query = supabase
       .from('afilados')
       .select(`
@@ -16,7 +66,8 @@ export const getAfilados = async (filters?: AfiladoFilters): Promise<AfiladoConR
         sierra:sierra_id(*, sucursales(*), tipos_sierra(*), estados_sierra(*)),
         tipo_afilado:tipo_afilado_id(*)
       `)
-      .order('fecha_afilado', { ascending: false });
+      .order(sortField, { ascending: sortDirection === 'asc' })
+      .range(from, to);
     
     // Aplicar filtros si existen
     if (filters) {
@@ -44,7 +95,10 @@ export const getAfilados = async (filters?: AfiladoFilters): Promise<AfiladoConR
       throw new Error(error.message);
     }
     
-    return data || [];
+    return {
+      data: data || [],
+      count: totalCount || 0
+    };
   } catch (error) {
     console.error('Error en getAfilados:', error);
     throw error;
