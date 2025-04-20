@@ -18,7 +18,17 @@ export const createClient = () => {
     throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is missing');
   }
   
-  supabaseClient = createSupabaseClient<Database>(supabaseUrl, supabaseKey);
+  // Configurar el cliente con persistencia de sesión mejorada
+  supabaseClient = createSupabaseClient<Database>(supabaseUrl, supabaseKey, {
+    auth: {
+      // Persistir la sesión en localStorage para mantenerla entre recargas
+      persistSession: true,
+      // Aumentar el tiempo de vida de la sesión (4 horas por defecto)
+      autoRefreshToken: true,
+      // Intentar recuperar la sesión al iniciar
+      storageKey: 'austech-auth-token',
+    },
+  });
   
   return supabaseClient;
 };

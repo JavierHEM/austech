@@ -101,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Datos de sesión obtenidos:', data);
         
         if (data.session) {
+          console.log('Sesión encontrada, actualizando estado');
           setSession(data.session);
           setUser(data.session.user);
           
@@ -108,6 +109,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const role = await getUserRole(data.session.user.id);
           setUserRole(role);
           console.log('Rol del usuario:', role);
+          
+          // Programar renovación de token antes de que expire
+          const expiresAt = data.session.expires_at;
+          if (expiresAt) {
+            const expiresIn = expiresAt * 1000 - Date.now();
+            const refreshTime = Math.max(expiresIn - 60000, 0); // Renovar 1 minuto antes de que expire
+            console.log(`Programando renovación de token en ${refreshTime / 1000} segundos`);
+            
+            // Renovar token antes de que expire
+            if (refreshTime > 0 && refreshTime < 3600000) { // Solo si expira en menos de 1 hora
+              setTimeout(async () => {
+                console.log('Renovando token de sesión...');
+                const { error: refreshError } = await supabase.auth.refreshSession();
+                if (refreshError) {
+                  console.error('Error al renovar sesión:', refreshError);
+                } else {
+                  console.log('Token de sesión renovado exitosamente');
+                }
+              }, refreshTime);
+            }
+          }
         } else {
           console.log('No hay sesión activa');
         }
