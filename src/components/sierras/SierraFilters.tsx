@@ -39,11 +39,28 @@ export default function SierraFilters({ onFilterChange }: SierraFiltersProps) {
 
         if (error) throw error;
         
-        const formattedData = data.map(item => ({
-          id: item.id,
-          nombre: item.nombre,
-          empresa_nombre: item.empresas?.razon_social || 'Sin empresa'
-        }));
+        const formattedData = data.map(item => {
+          // Asegurarse de que empresas sea tratado correctamente, ya sea como objeto o como array
+          const empresaData = item.empresas;
+          let razonSocial = null;
+          
+          if (typeof empresaData === 'object' && empresaData !== null) {
+            if (Array.isArray(empresaData) && empresaData.length > 0) {
+              // Si es un array, tomamos el primer elemento
+              const primerEmpresa = empresaData[0];
+              razonSocial = primerEmpresa && 'razon_social' in primerEmpresa ? primerEmpresa.razon_social : null;
+            } else {
+              // Si es un objeto, accedemos directamente
+              razonSocial = empresaData && 'razon_social' in empresaData ? empresaData.razon_social : null;
+            }
+          }
+            
+          return {
+            id: item.id,
+            nombre: item.nombre,
+            empresa_nombre: razonSocial || 'Sin empresa'
+          };
+        });
         
         setSucursales(formattedData || []);
         setLoadingSucursales(false);
@@ -130,7 +147,7 @@ export default function SierraFilters({ onFilterChange }: SierraFiltersProps) {
       codigo_barras: codigoBarras || undefined,
       sucursal_id: sucursalIdValue,
       tipo_sierra_id: tipoSierraIdValue,
-      estado_sierra_id: estadoSierraIdValue,
+      estado_id: estadoSierraIdValue,
       activo: activoValue
     });
   };
@@ -146,7 +163,7 @@ export default function SierraFilters({ onFilterChange }: SierraFiltersProps) {
       codigo_barras: undefined,
       sucursal_id: null,
       tipo_sierra_id: null,
-      estado_sierra_id: null,
+      estado_id: null,
       activo: null
     });
   };

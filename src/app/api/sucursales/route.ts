@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
     
     // Construir consulta básica
-    let query = db
+    let query = db.client
       .from('sucursales')
       .select('*, empresas(id, razon_social, rut)', { count: 'exact' });
     
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     }
     
     // Verificar que la empresa exista
-    const { data: empresaExistente, error: errorEmpresa } = await db
+    const { data: empresaExistente, error: errorEmpresa } = await db.client
       .from('empresas')
       .select('id')
       .eq('id', body.empresa_id)
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
     
     // Insertar la nueva sucursal
     const now = new Date().toISOString();
-    const { data, error } = await db
+    const { data, error } = await db.client
       .from('sucursales')
       .insert({
         empresa_id: body.empresa_id,

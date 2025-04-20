@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { createClient } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function PasswordResetPage() {
+// Componente interno que usa useSearchParams
+function PasswordResetContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [userEmail, setUserEmail] = useState<string>('');
@@ -101,6 +102,27 @@ export default function PasswordResetPage() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// Componente de carga
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+      <span className="ml-2">Cargando...</span>
+    </div>
+  );
+}
+
+// Componente principal que envuelve el contenido en un límite de suspense
+export default function PasswordResetPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <Suspense fallback={<LoadingState />}>
+        <PasswordResetContent />
+      </Suspense>
     </div>
   );
 }

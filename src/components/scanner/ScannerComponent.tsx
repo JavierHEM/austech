@@ -50,7 +50,10 @@ export default function ScannerComponent({ onScan }: ScannerComponentProps) {
       await scannerRef.current.start(
         { facingMode: "environment" }, 
         config, 
-        qrCodeSuccessCallback
+        qrCodeSuccessCallback,
+        (errorMessage: string) => {
+          console.error("Error en el escaneo:", errorMessage);
+        }
       );
     } catch (error) {
       console.error("Error al iniciar el escáner:", error);

@@ -18,7 +18,7 @@ export async function GET(
     }
     
     // Verificar que la empresa exista
-    const empresaExistente = await db
+    const empresaExistente = await db.client
       .from('empresas')
       .select('id')
       .eq('id', empresaId)
@@ -40,7 +40,7 @@ export async function GET(
     const offset = (page - 1) * limit;
     
     // Construir consulta
-    let query = db
+    let query = db.client
       .from('sucursales')
       .select('*', { count: 'exact' })
       .eq('empresa_id', empresaId);
@@ -98,7 +98,7 @@ export async function POST(
     }
     
     // Verificar que la empresa exista
-    const empresaExistente = await db
+    const empresaExistente = await db.client
       .from('empresas')
       .select('id')
       .eq('id', empresaId)
@@ -123,7 +123,7 @@ export async function POST(
     
     // Insertar la nueva sucursal
     const now = new Date().toISOString();
-    const { data, error } = await db
+    const { data, error } = await db.client
       .from('sucursales')
       .insert({
         empresa_id: empresaId,

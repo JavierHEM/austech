@@ -23,13 +23,13 @@ export async function GET(
     let query;
     
     if (includeEmpresa) {
-      query = db
+      query = db.client
         .from('sucursales')
         .select('*, empresas(*)')
         .eq('id', id)
         .single();
     } else {
-      query = db
+      query = db.client
         .from('sucursales')
         .select('*')
         .eq('id', id)
@@ -90,7 +90,7 @@ export async function PUT(
     }
     
     // Verificar que la sucursal exista
-    const { data: sucursalExistente, error: errorSucursal } = await db
+    const { data: sucursalExistente, error: errorSucursal } = await db.client
       .from('sucursales')
       .select('id')
       .eq('id', id)
@@ -115,7 +115,7 @@ export async function PUT(
     
     // Actualizar la sucursal
     const now = new Date().toISOString();
-    const { data, error } = await db
+    const { data, error } = await db.client
       .from('sucursales')
       .update({
         nombre: body.nombre,
@@ -160,7 +160,7 @@ export async function DELETE(
     }
     
     // Verificar que la sucursal exista
-    const { data: sucursalExistente, error: errorSucursal } = await db
+    const { data: sucursalExistente, error: errorSucursal } = await db.client
       .from('sucursales')
       .select('id')
       .eq('id', id)
@@ -174,7 +174,7 @@ export async function DELETE(
     }
     
     // Eliminar la sucursal
-    const { error } = await db
+    const { error } = await db.client
       .from('sucursales')
       .delete()
       .eq('id', id);

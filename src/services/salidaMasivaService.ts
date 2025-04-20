@@ -163,6 +163,12 @@ export const createSalidaMasiva = async (salidaMasiva: SalidaMasivaInput, usuari
         .eq('id', afiladoId)
         .single();
       
+      // Verificar que se haya encontrado el afilado y tenga sierra_id
+      if (!afilado || !afilado.sierra_id) {
+        console.warn(`No se encontró información de sierra para el afilado ${afiladoId}`);
+        continue; // Continuar con el siguiente afilado
+      }
+      
       // Actualizar el estado de la sierra a "Disponible" (estado 1)
       const { error: sierraError } = await supabase
         .from('sierras')
@@ -246,6 +252,12 @@ export const deleteSalidaMasiva = async (id: number): Promise<void> => {
         .select('sierra_id')
         .eq('id', afiladoId)
         .single();
+      
+      // Verificar que se haya encontrado el afilado y tenga sierra_id
+      if (!afilado || !afilado.sierra_id) {
+        console.warn(`No se encontró información de sierra para el afilado ${afiladoId}`);
+        continue; // Continuar con el siguiente afilado
+      }
       
       // Actualizar el estado de la sierra a "Lista para retiro" (estado 3)
       const { error: sierraError } = await supabase
