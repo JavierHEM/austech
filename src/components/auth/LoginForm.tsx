@@ -25,14 +25,15 @@ export default function LoginForm() {
   
   // Efecto para detectar si el contexto de autenticación está cargando por mucho tiempo
   useEffect(() => {
-    // Si el contexto de autenticación está cargando por más de 10 segundos, mostrar un error
+    // Si el contexto de autenticación está cargando por más de 15 segundos, mostrar un error
     if (authLoading) {
+      console.log('Esperando respuesta de autenticación...');
       loginTimeoutRef.current = setTimeout(() => {
         console.error('Tiempo de espera agotado para la autenticación');
-        setError('El servidor está tardando demasiado en responder. Por favor, recarga la página e intenta nuevamente.');
+        setError('Problemas de conexión con el servidor. Esto puede deberse a una conexión lenta o a problemas temporales. Por favor, intenta nuevamente.');
         // Forzar el estado de carga a false
         setIsLoading(false);
-      }, 10000); // 10 segundos de timeout
+      }, 15000); // 15 segundos de timeout (aumentado de 10 a 15)
       
       return () => {
         if (loginTimeoutRef.current) {
@@ -54,9 +55,9 @@ export default function LoginForm() {
     
     loginTimeoutRef.current = setTimeout(() => {
       console.error("LoginForm: Tiempo de espera agotado");
-      setError("El inicio de sesión está tardando demasiado. Por favor, intenta nuevamente más tarde.");
+      setError("No se pudo conectar con el servidor. Verifica tu conexión a internet y que las variables de entorno estén correctamente configuradas en Vercel.");
       setIsLoading(false);
-    }, 15000); // 15 segundos de timeout
+    }, 20000); // 20 segundos de timeout (aumentado de 15 a 20)
     
     try {
       console.log("LoginForm: Iniciando proceso de login");
@@ -130,13 +131,21 @@ export default function LoginForm() {
         {error && (
           <div className="mb-4 bg-red-50 dark:bg-red-900/10 p-4 rounded-md">
             <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-            {error.includes('tardando demasiado') && (
-              <button 
-                onClick={() => window.location.reload()} 
-                className="mt-2 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-              >
-                Recargar página
-              </button>
+            {(error.includes('tardando demasiado') || error.includes('conexión') || error.includes('servidor')) && (
+              <div className="mt-2 flex flex-col space-y-2">
+                <button 
+                  onClick={() => window.location.reload()} 
+                  className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Recargar página
+                </button>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Si el problema persiste, contacta al administrador del sistema.
+                </p>
+              </div>
             )}
           </div>
         )}
