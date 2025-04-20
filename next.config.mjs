@@ -4,19 +4,18 @@ const nextConfig = {
     swcMinify: true,
     images: {
       domains: ['localhost'],
+      unoptimized: true, // Esto ayuda con problemas de imágenes en Vercel
     },
-    // Configuración de internacionalización
-    i18n: {
-      locales: ['es'],
-      defaultLocale: 'es',
-    },
+    // Eliminamos la configuración i18n obsoleta que puede causar problemas
+    // La configuración i18n está obsoleta en las nuevas versiones de Next.js
+    
     // Redirección del inicio a la página de login
     async redirects() {
       return [
         {
           source: '/',
           destination: '/login',
-          permanent: true,
+          permanent: false, // Cambiado a false para evitar problemas de caché
         },
       ];
     },
