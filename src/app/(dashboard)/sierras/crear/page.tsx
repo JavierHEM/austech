@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 
 export default function CrearSierraPage() {
   const searchParams = useSearchParams();
-  const sucursalId = searchParams.get('sucursal_id');
+  const sucursalId = searchParams ? searchParams.get('sucursal_id') : null;
 
   return (
     <div className="container mx-auto py-6">
