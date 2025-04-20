@@ -23,6 +23,8 @@ export const createClient = () => {
   console.log('Inicializando cliente de Supabase con URL:', supabaseUrl.substring(0, 20) + '...');
   
   try {
+    console.log('Inicializando cliente de Supabase para dominio:', typeof window !== 'undefined' ? window.location.origin : 'servidor');
+    
     // Configurar el cliente con persistencia de sesión mejorada y tiempos de espera reducidos
     supabaseClient = createSupabaseClient<Database>(supabaseUrl, supabaseKey, {
       auth: {
@@ -34,6 +36,8 @@ export const createClient = () => {
         storageKey: 'austech-auth-token',
         // Reducir el tiempo de espera para las operaciones de autenticación
         flowType: 'implicit',
+        // No usar cookies para evitar problemas de CORS
+        detectSessionInUrl: true,
       },
       global: {
         // Implementar sistema de reintentos y manejo mejorado de errores para las solicitudes
@@ -54,8 +58,8 @@ export const createClient = () => {
               const response = await fetch(url, {
                 ...options,
                 signal: controller.signal,
-                // Asegurarse de que las credenciales se envíen correctamente
-                credentials: 'include',
+                // No usar 'credentials: include' para evitar problemas de CORS
+                // credentials: 'include', // Esto causa problemas de CORS con el comodín '*'
                 // Asegurarse de que las solicitudes no se cacheen
                 headers: {
                   ...options?.headers,
