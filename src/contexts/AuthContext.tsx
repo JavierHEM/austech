@@ -89,13 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkSession = async () => {
       try {
+        console.log('Verificando sesión...');
         // Obtener la sesión actual
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
+          console.error('Error al obtener la sesión:', error);
           throw error;
         }
 
+        console.log('Datos de sesión obtenidos:', data);
+        
         if (data.session) {
           setSession(data.session);
           setUser(data.session.user);
@@ -104,10 +108,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const role = await getUserRole(data.session.user.id);
           setUserRole(role);
           console.log('Rol del usuario:', role);
+        } else {
+          console.log('No hay sesión activa');
         }
       } catch (error) {
         console.error('Error al verificar la sesión:', error);
+        // Asegurarse de que los errores no bloqueen la aplicación
+        setSession(null);
+        setUser(null);
+        setUserRole(null);
       } finally {
+        // Siempre establecer isLoading en false para evitar que se quede cargando indefinidamente
         setIsLoading(false);
       }
     };
@@ -155,6 +166,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Intentando iniciar sesión con email:', email);
       
+      // Validar entrada
+      if (!email || !password) {
+        console.error('Email o contraseña vacíos');
+        return { 
+          error: new Error('Email y contraseña son requeridos') as AuthError, 
+          data: { user: null, session: null } 
+        };
+      }
+      
+      // Intentar inicio de sesión
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -162,21 +183,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error de autenticación:', error);
+        setIsLoading(false); // Asegurarse de desactivar el estado de carga
         return { 
           error, 
-          data: { 
-            user: null, 
-            session: null 
-          } 
+          data: { user: null, session: null } 
+        };
+      }
+
+      // Verificar que tenemos datos válidos
+      if (!data || !data.session || !data.user) {
+        console.error('Respuesta de autenticación inválida:', data);
+        setIsLoading(false);
+        return { 
+          error: new Error('Respuesta de autenticación inválida') as AuthError, 
+          data: { user: null, session: null } 
         };
       }
 
       // Actualizar el estado inmediatamente después del inicio de sesión exitoso
-      if (data.session && data.user) {
-        console.log('Inicio de sesión exitoso para usuario:', data.user.id);
-        setSession(data.session);
-        setUser(data.user);
-        
+      console.log('Inicio de sesión exitoso para usuario:', data.user.id);
+      setSession(data.session);
+      setUser(data.user);
+      
+      try {
         // Obtener el rol del usuario
         const role = await getUserRole(data.user.id);
         setUserRole(role);
@@ -199,6 +228,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setUserRole(null);
         }
+      } catch (roleError) {
+        console.error('Error al obtener rol del usuario:', roleError);
+        toast({
+          title: 'Error al verificar permisos',
+          description: 'Hubo un problema al verificar tu rol en el sistema. Intenta nuevamente.',
+          variant: 'destructive'
+        });
+        // No cerramos sesión aquí para permitir reintentar
       }
 
       return { 
@@ -209,16 +246,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } 
       };
     } catch (error) {
-      console.error('Error en inicio de sesión:', error);
+      console.error('Error inesperado en inicio de sesión:', error);
+      toast({
+        title: 'Error de conexión',
+        description: 'Hubo un problema al conectar con el servidor. Verifica tu conexión e intenta nuevamente.',
+        variant: 'destructive'
+      });
       return { 
         error: error as AuthError, 
-        data: { 
-          user: null, 
-          session: null 
-        } 
+        data: { user: null, session: null } 
       };
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Siempre desactivar el estado de carga
     }
   };
 

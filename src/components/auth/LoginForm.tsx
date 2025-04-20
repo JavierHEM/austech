@@ -19,7 +19,7 @@ export default function LoginForm() {
     setError("");
     
     try {
-      console.log("LoginForm: Intentando iniciar sesión con email:", email);
+      console.log("LoginForm: Iniciando proceso de login");
       
       // Verificar si hay datos vacíos
       if (!email || !password) {
@@ -27,7 +27,9 @@ export default function LoginForm() {
       }
       
       // El AuthContext se encarga de la redirección y verificación de rol
+      console.log("LoginForm: Llamando a signIn");
       const { error, data } = await signIn(email, password);
+      console.log("LoginForm: Respuesta de signIn recibida", { error: !!error, data: !!data });
       
       if (error) {
         console.error("LoginForm: Error de autenticación:", error);
@@ -37,6 +39,8 @@ export default function LoginForm() {
           throw new Error("Credenciales inválidas. Por favor verifica tu email y contraseña.");
         } else if (error.message?.includes("Email not confirmed")) {
           throw new Error("Correo electrónico no confirmado. Por favor verifica tu bandeja de entrada.");
+        } else if (error.message?.includes("network") || error.message?.includes("connection")) {
+          throw new Error("Error de conexión. Verifica tu conexión a internet e intenta nuevamente.");
         } else {
           throw error;
         }
@@ -44,11 +48,13 @@ export default function LoginForm() {
 
       // Verificar si tenemos datos de usuario
       if (!data?.user || !data?.session) {
+        console.error("LoginForm: Datos de usuario incompletos", data);
         throw new Error("No se pudo obtener la información del usuario");
       }
 
       console.log("LoginForm: Inicio de sesión exitoso", {
-        user: data.user
+        userId: data.user.id,
+        email: data.user.email
       });
       
       // No hacemos redirección aquí, el AuthContext se encarga de eso
@@ -56,8 +62,12 @@ export default function LoginForm() {
       
     } catch (error: any) {
       console.error("LoginForm: Error completo:", error);
-      setError(error.message || "Error al iniciar sesión");
+      setError(error.message || "Error al iniciar sesión. Por favor intenta nuevamente.");
+      // Asegurarse de que isLoading se establezca en false en caso de error
+      setIsLoading(false);
     } finally {
+      // Este finally puede no ejecutarse si hay una redirección, así que también
+      // establecemos isLoading en false en el bloque catch
       setIsLoading(false);
     }
   };
