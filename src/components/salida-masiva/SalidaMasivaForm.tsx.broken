@@ -1,0 +1,563 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { CalendarIcon, Loader2 } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { createSalidaMasiva } from '@/services/salidaMasivaService';
+import { getSucursales } from '@/services/sucursalService';
+import { Sucursal } from '@/types/sucursal';
+import { SalidaMasivaInput } from '@/types/salidaMasiva';
+import { AfiladoConRelaciones } from '@/types/afilado';
+import BarcodeInputComponent from '@/components/scanner/BarcodeInputComponent';
+import { getSierraByCodigo } from '@/services/sierraService';
+import { getAfiladosBySierra } from '@/services/afiladoService';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/contexts/AuthContext';
+
+// Esquema de validación para el formulario
+const formSchema = z.object({
+  sucursal_id: z.string().min(1, {
+    message: 'Debe seleccionar una sucursal',
+  }),
+  fecha_salida: z.date({
+    required_error: 'Debe seleccionar una fecha de salida',
+  }),
+  observaciones: z.string().optional(),
+});
+
+export default function SalidaMasivaForm() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [scannerActive, setScannerActive] = useState(false);
+  const [scannedAfilados, setScannedAfilados] = useState<AfiladoConRelaciones[]>([]);
+  const [processingBarcode, setProcessingBarcode] = useState(false);
+
+  // Inicializar el formulario
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      sucursal_id: '',
+      fecha_salida: new Date(),
+      observaciones: '',
+    },
+  });
+
+  // Cargar las sucursales al montar el componente
+  useEffect(() => {
+    const loadSucursales = async () => {
+      try {
+        const response = await getSucursales();
+        // Asegurar que estamos trabajando con el formato correcto de datos
+        const sucursalesData = response.data || [];
+        setSucursales(sucursalesData);
+      } catch (error) {
+        console.error('Error al cargar sucursales:', error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar las sucursales',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    loadSucursales();
+  }, [toast]);
+
+  // Manejar el envío del formulario
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (scannedAfilados.length === 0) {
+      toast({
+        title: 'Error',
+        description: 'Debe escanear al menos una sierra para registrar la salida masiva',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Preparar los datos para enviar
+      const salidaMasivaData: SalidaMasivaInput = {
+        sucursal_id: parseInt(values.sucursal_id),
+        fecha_salida: format(values.fecha_salida, 'yyyy-MM-dd'),
+        observaciones: values.observaciones,
+        afilados_ids: scannedAfilados.map(afilado => afilado.id),
+      };
+
+      // Crear la salida masiva
+      await createSalidaMasiva(salidaMasivaData, user?.id || '');
+
+      toast({
+        title: 'Éxito',
+        description: 'Salida masiva registrada correctamente',
+      });
+
+      // Redireccionar a la lista de salidas masivas
+      router.push('/salidas-masivas');
+      router.refresh();
+    } catch (error: any) {
+      console.error('Error al registrar salida masiva:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'No se pudo registrar la salida masiva',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Manejar el escaneo de código de barras
+  const handleBarcodeScan = async (barcode: string) => {
+    try {
+      setProcessingBarcode(true);
+      
+      // Verificar si ya se escaneó esta sierra
+      const sierraYaEscaneada = scannedAfilados.some(
+        afilado => afilado.sierra?.codigo_barras === barcode
+      );
+      
+      if (sierraYaEscaneada) {
+        toast({
+          title: 'Advertencia',
+          description: 'Esta sierra ya ha sido escaneada',
+          variant: 'default',
+        });
+        return;
+      }
+      
+      // Buscar la sierra por código de barras
+      const sierra = await getSierraByCodigo(barcode);
+      
+      if (!sierra) {
+        toast({
+          title: 'Error',
+          description: 'No se encontró ninguna sierra con ese código de barras',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Verificar que la sierra esté en estado "Lista para retiro" (estado 3) o "En proceso de afilado" (estado 2)
+      if (sierra.estado_id !== 3 && sierra.estado_id !== 2) {
+        toast({
+          title: 'Error',
+          description: `La sierra debe estar en estado "Lista para retiro" o "En proceso de afilado". Estado actual: ${sierra.estado_sierra?.nombre}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Mostrar una advertencia si la sierra está en proceso de afilado
+      if (sierra.estado_id === 2) {
+        toast({
+          title: 'Advertencia',
+          description: `La sierra está en estado "En proceso de afilado". Se cambiará a "Disponible" al registrar la salida.`,
+          variant: 'default',
+        });
+      }
+      
+      // Obtener el último afilado de la sierra
+      const afilados = await getAfiladosBySierra(sierra.id);
+      
+      if (afilados.length === 0) {
+        toast({
+          title: 'Error',
+          description: 'La sierra no tiene afilados registrados',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      const ultimoAfilado = afilados[0]; // El primero es el más reciente por el orden
+      
+      // Verificar que el afilado no tenga fecha de salida
+      if (ultimoAfilado.fecha_salida) {
+        toast({
+          title: 'Error',
+          description: 'El último afilado de esta sierra ya tiene registrada una fecha de salida',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Agregar el afilado a la lista
+      setScannedAfilados(prev => [...prev, ultimoAfilado]);
+      
+      toast({
+        title: 'Éxito',
+        description: 'Sierra escaneada correctamente',
+      });
+    } catch (error: any) {
+      console.error('Error al procesar código de barras:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'No se pudo procesar el código de barras',
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessingBarcode(false);
+    }
+  };
+
+  // Eliminar un afilado de la lista
+  const handleRemoveAfilado = (afiladoId: number) => {
+    setScannedAfilados(prev => prev.filter(afilado => afilado.id !== afiladoId));
+  };
+
+  return (
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              control={form.control}
+              name="sucursal_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Sucursal</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    disabled={loading}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar sucursal" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {sucursales.map((sucursal) => (
+                        <SelectItem key={sucursal.id} value={sucursal.id.toString()}>
+                          {sucursal.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Sucursal a la que pertenecen las sierras
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="fecha_salida"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Fecha de Salida</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={loading}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP", { locale: es })
+                          ) : (
+                            <span>Seleccionar fecha</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                        initialFocus
+                        locale={es}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormDescription>
+                    Fecha en que se entregan las sierras
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="observaciones"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Observaciones</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Ingrese observaciones adicionales (opcional)"
+                    className="resize-none"
+                    {...field}
+                    disabled={loading}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Información adicional sobre la salida masiva
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Escanear Sierras</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Button
+                  type="button"
+                  onClick={() => setScannerActive(!scannerActive)}
+                  variant={scannerActive ? "destructive" : "default"}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar sucursal" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {sucursales.map((sucursal) => (
+                      <SelectItem key={sucursal.id} value={sucursal.id.toString()}>
+                        {sucursal.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Sucursal a la que pertenecen las sierras
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="fecha_salida"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Fecha de Salida</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                        disabled={loading}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP", { locale: es })
+                        ) : (
+                          <span>Seleccionar fecha</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      initialFocus
+                      locale={es}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormDescription>
+                  Fecha en que se entregan las sierras
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <FormField
+          control={form.control}
+          name="observaciones"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Observaciones</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Ingrese observaciones adicionales (opcional)"
+                  className="resize-none"
+                  {...field}
+                  disabled={loading}
+                />
+              </FormControl>
+              <FormDescription>
+                Información adicional sobre la salida masiva
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Escanear Sierras</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Button
+                type="button"
+                onClick={() => setScannerActive(!scannerActive)}
+                variant={scannerActive ? "destructive" : "default"}
+                disabled={loading || processingBarcode}
+              >
+                {scannerActive ? "Desactivar Scanner" : "Activar Scanner"}
+              </Button>
+
+              <div className="mb-6">
+                <h3 className="text-lg font-medium mb-4">Escanear Sierras</h3>
+                {scannerActive && (
+                  <div className="border rounded-lg p-4">
+                    <BarcodeInputComponent 
+                      onScan={handleBarcodeScan} 
+                      placeholder="Escanee o ingrese el código de barras de la sierra"
+                    />
+                    {processingBarcode && (
+                      <div className="flex justify-center mt-2">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <span className="ml-2">Procesando código...</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-medium mb-2">Sierras Escaneadas ({scannedAfilados.length})</h3>
+                {scannedAfilados.length > 0 ? (
+                  <ScrollArea className="h-[200px] border rounded-md p-4">
+                    <div className="space-y-2">
+                      {scannedAfilados.map((afilado) => (
+                        <div key={afilado.id} className="flex justify-between items-center border-b pb-2">
+                          <div>
+                            <p className="font-medium">Sierra: {afilado.sierra?.codigo_barras}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Tipo: {afilado.sierra?.tipo_sierra?.nombre}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Afilado: {format(new Date(afilado.fecha_afilado), 'dd/MM/yyyy')}
+                            </p>
+                            <Badge variant="outline" className="mt-1">
+                              {afilado.sierra?.estado_sierra?.nombre}
+                            </Badge>
+                )}
+
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Sierras Escaneadas ({scannedAfilados.length})</h3>
+                  {scannedAfilados.length > 0 ? (
+                    <ScrollArea className="h-[200px] border rounded-md p-4">
+                      <div className="space-y-2">
+                        {scannedAfilados.map((afilado) => (
+                          <div key={afilado.id} className="flex justify-between items-center border-b pb-2">
+                            <div>
+                              <p className="font-medium">Sierra: {afilado.sierra?.codigo_barras}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Tipo: {afilado.sierra?.tipo_sierra?.nombre}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                Afilado: {format(new Date(afilado.fecha_afilado), 'dd/MM/yyyy')}
+                              </p>
+                              <Badge variant="outline" className="mt-1">
+                                {afilado.sierra?.estado_sierra?.nombre}
+                              </Badge>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveAfilado(afilado.id)}
+                              disabled={loading}
+                            >
+                              Eliminar
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8 border rounded-md">
+                      No hay sierras escaneadas. Escanee al menos una sierra para continuar.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end space-x-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading || scannedAfilados.length === 0}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Registrar Salida Masiva
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
+  );
+}

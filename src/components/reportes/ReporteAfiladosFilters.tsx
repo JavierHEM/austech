@@ -1,0 +1,390 @@
+'use client';
+
+import * as React from "react";
+const { useState, useEffect } = React;
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { CalendarIcon, Search } from 'lucide-react';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+import { Button } from '@/components/ui/button';
+// Importamos los componentes de formulario simplificados que no dependen de useFormContext
+import {
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormDescription,
+  FormMessage,
+} from '@/components/ui/simple-form';
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
+import { getEmpresasActivas } from '@/services/reporteService';
+import { Empresa } from '@/types/empresa';
+import { ReporteAfiladosPorClienteFilters } from '@/services/reporteService';
+import { Sucursal } from '@/types/sucursal';
+import { TipoSierra } from '@/types/sierra';
+import { TipoAfilado } from '@/types/afilado';
+
+// Esquema de validación para los filtros
+const formSchema = z.object({
+  empresa_id: z.string().min(1, { message: 'Seleccione una empresa' }),
+  sucursal_id: z.string().optional(),
+  tipo_sierra_id: z.string().optional(),
+  tipo_afilado_id: z.string().optional(),
+  fecha_desde: z.date().optional(),
+  fecha_hasta: z.date().optional(),
+  activo: z.boolean().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+interface ReporteAfiladosFiltersProps {
+  onFilter: (filters: ReporteAfiladosPorClienteFilters) => void;
+}
+
+export default function ReporteAfiladosFilters({ onFilter }: ReporteAfiladosFiltersProps) {
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [tiposSierra, setTiposSierra] = useState<TipoSierra[]>([]);
+  const [tiposAfilado, setTiposAfilado] = useState<TipoAfilado[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Configurar el formulario
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      empresa_id: '',
+      sucursal_id: '',
+      tipo_sierra_id: '',
+      tipo_afilado_id: '',
+      fecha_desde: undefined,
+      fecha_hasta: undefined,
+      activo: undefined, // undefined significa que no se aplica filtro
+    },
+    shouldUnregister: false,
+  });
+
+  // Cargar empresas al montar el componente
+  useEffect(() => {
+    const loadEmpresas = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getEmpresasActivas();
+        setEmpresas(data);
+      } catch (error) {
+        console.error('Error al cargar empresas:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadEmpresas();
+  }, []);
+  
+  // Cargar sucursales cuando se selecciona una empresa
+  useEffect(() => {
+    const loadSucursales = async () => {
+      const empresaId = form.watch('empresa_id');
+      if (!empresaId) {
+        setSucursales([]);
+        return;
+      }
+      
+      try {
+        setIsLoading(true);
+        const { createClient } = await import('@/lib/supabase');
+        const supabase = createClient();
+        
+        const { data, error } = await supabase
+          .from('sucursales')
+          .select('*')
+          .eq('empresa_id', parseInt(empresaId))
+          .eq('activo', true)
+          .order('nombre');
+          
+        if (error) throw error;
+        
+        setSucursales(data || []);
+      } catch (error) {
+        console.error('Error al cargar sucursales:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadSucursales();
+  }, [form.watch('empresa_id')]);
+  
+  // Cargar tipos de sierra y tipos de afilado
+  useEffect(() => {
+    const loadCatalogos = async () => {
+      try {
+        setIsLoading(true);
+        const { createClient } = await import('@/lib/supabase');
+        const supabase = createClient();
+        
+        // Cargar tipos de sierra
+        const { data: dataTiposSierra, error: errorTiposSierra } = await supabase
+          .from('tipos_sierra')
+          .select('*')
+          .eq('activo', true)
+          .order('nombre');
+          
+        if (errorTiposSierra) throw errorTiposSierra;
+        setTiposSierra(dataTiposSierra || []);
+        
+        // Cargar tipos de afilado
+        const { data: dataTiposAfilado, error: errorTiposAfilado } = await supabase
+          .from('tipos_afilado')
+          .select('*')
+          .order('nombre');
+          
+        if (errorTiposAfilado) throw errorTiposAfilado;
+        setTiposAfilado(dataTiposAfilado || []);
+      } catch (error) {
+        console.error('Error al cargar catálogos:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadCatalogos();
+  }, []);
+
+  // Manejar envío del formulario
+  const onSubmit = (values: FormValues) => {
+    const filters: ReporteAfiladosPorClienteFilters = {
+      empresa_id: parseInt(values.empresa_id),
+      sucursal_id: values.sucursal_id && values.sucursal_id !== "all_sucursales" ? parseInt(values.sucursal_id) : null,
+      tipo_sierra_id: values.tipo_sierra_id && values.tipo_sierra_id !== "all_tipos" ? parseInt(values.tipo_sierra_id) : null,
+      tipo_afilado_id: values.tipo_afilado_id && values.tipo_afilado_id !== "all_tipos" ? parseInt(values.tipo_afilado_id) : null,
+      fecha_desde: values.fecha_desde ? format(values.fecha_desde, 'yyyy-MM-dd') : null,
+      fecha_hasta: values.fecha_hasta ? format(values.fecha_hasta, 'yyyy-MM-dd') : null,
+      // Solo enviamos el valor de activo si es un booleano definido
+      // para evitar errores con PostgreSQL que no acepta null para columnas booleanas
+      ...(typeof values.activo === 'boolean' ? { activo: values.activo } : {}),
+    };
+    
+    onFilter(filters);
+  };
+
+  return (
+    <div className="space-y-4 bg-card p-4 rounded-md shadow">
+      <div className="text-lg font-semibold mb-4">Filtros del Reporte</div>
+      
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Selector de empresa */}
+          <FormItem>
+            <FormLabel htmlFor="empresa_id">Empresa</FormLabel>
+            <Select 
+              disabled={isLoading} 
+              onValueChange={(value) => form.setValue('empresa_id', value)} 
+              value={form.watch('empresa_id')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione una empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                {empresas.map((empresa) => (
+                  <SelectItem key={empresa.id} value={empresa.id.toString()}>
+                    {empresa.razon_social}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.formState.errors.empresa_id && (
+              <FormMessage>{form.formState.errors.empresa_id.message}</FormMessage>
+            )}
+          </FormItem>
+          
+          {/* Selector de sucursal */}
+          <FormItem>
+            <FormLabel htmlFor="sucursal_id">Sucursal</FormLabel>
+            <Select 
+              disabled={isLoading || !form.watch('empresa_id')} 
+              onValueChange={(value) => form.setValue('sucursal_id', value)} 
+              value={form.watch('sucursal_id')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione una sucursal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all_sucursales">Todas las sucursales</SelectItem>
+                {sucursales.map((sucursal) => (
+                  <SelectItem key={sucursal.id} value={sucursal.id.toString()}>
+                    {sucursal.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormItem>
+          
+          {/* Selector de tipo de sierra */}
+          <FormItem>
+            <FormLabel htmlFor="tipo_sierra_id">Tipo de Sierra</FormLabel>
+            <Select 
+              disabled={isLoading} 
+              onValueChange={(value) => form.setValue('tipo_sierra_id', value)} 
+              value={form.watch('tipo_sierra_id')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione un tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all_tipos">Todos los tipos</SelectItem>
+                {tiposSierra.map((tipo) => (
+                  <SelectItem key={tipo.id} value={tipo.id.toString()}>
+                    {tipo.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormItem>
+
+          {/* Selector de tipo de afilado */}
+          <FormItem>
+            <FormLabel htmlFor="tipo_afilado_id">Tipo de Afilado</FormLabel>
+            <Select 
+              disabled={isLoading} 
+              onValueChange={(value) => form.setValue('tipo_afilado_id', value)} 
+              value={form.watch('tipo_afilado_id')}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione un tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all_tipos">Todos los tipos</SelectItem>
+                {tiposAfilado.map((tipo) => (
+                  <SelectItem key={tipo.id} value={tipo.id.toString()}>
+                    {tipo.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormItem>
+
+          {/* Fecha desde */}
+          <FormItem>
+            <FormLabel htmlFor="fecha_desde">Fecha desde</FormLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "pl-3 text-left font-normal w-full",
+                    !form.watch('fecha_desde') && "text-muted-foreground"
+                  )}
+                >
+                  {form.watch('fecha_desde') ? (
+                    format(form.watch('fecha_desde') as Date, "PPP", { locale: es })
+                  ) : (
+                    <span>Seleccione una fecha</span>
+                  )}
+                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={form.watch('fecha_desde') as Date | undefined}
+                  onSelect={(date) => form.setValue('fecha_desde', date)}
+                  disabled={(date) =>
+                    date > new Date() || date < new Date("1900-01-01")
+                  }
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </FormItem>
+
+          {/* Fecha hasta */}
+          <FormItem>
+            <FormLabel htmlFor="fecha_hasta">Fecha hasta</FormLabel>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "pl-3 text-left font-normal w-full",
+                    !form.watch('fecha_hasta') && "text-muted-foreground"
+                  )}
+                >
+                  {form.watch('fecha_hasta') ? (
+                    format(form.watch('fecha_hasta') as Date, "PPP", { locale: es })
+                  ) : (
+                    <span>Seleccione una fecha</span>
+                  )}
+                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={form.watch('fecha_hasta') as Date | undefined}
+                  onSelect={(date) => form.setValue('fecha_hasta', date)}
+                  disabled={(date) =>
+                    date > new Date() || date < new Date("1900-01-01")
+                  }
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </FormItem>
+          
+          {/* Estado activo */}
+          <FormItem>
+            <FormLabel htmlFor="activo">Estado</FormLabel>
+            <Select 
+              disabled={isLoading} 
+              onValueChange={(value) => {
+                if (value === "todos") {
+                  form.setValue('activo', undefined);
+                } else {
+                  form.setValue('activo', value === "true");
+                }
+              }} 
+              value={
+                form.watch('activo') === undefined
+                  ? "todos"
+                  : form.watch('activo') === true
+                  ? "true"
+                  : "false"
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Todos los estados" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los estados</SelectItem>
+                <SelectItem value="true">Activas</SelectItem>
+                <SelectItem value="false">Inactivas</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormItem>
+        </div>
+
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isLoading}>
+            <Search className="mr-2 h-4 w-4" />
+            Generar Reporte
+          </Button>
+        </div>
+        </form>
+    </div>
+  );
+}
