@@ -49,7 +49,7 @@ export default function ReporteAfiladosPorClientePage() {
       
       handleFilter(initialFilters);
     }
-  }, [empresaIdParam, ]);
+  }, [empresaIdParam, role]); // Corregido: se agregó role a las dependencias y se eliminó la coma suelta
 
   // Manejar la aplicación de filtros
   const handleFilter = async (filters: ReporteAfiladosPorClienteFilters) => {

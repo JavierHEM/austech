@@ -4,8 +4,9 @@ import { useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase-client';
-import Loading from '@/components/ui/Loading';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { AlertCircle } from 'lucide-react';
 
 interface ClienteRestrictionProps {
@@ -22,26 +23,42 @@ export default function ClienteRestriction({
   const [isChecking, setIsChecking] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const [empresasPermitidas, setEmpresasPermitidas] = useState<number[]>([]);
+  const [nombresEmpresas, setNombresEmpresas] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Si no es un usuario cliente, permitir acceso sin verificación
     if (!session?.user || role !== 'cliente') {
       setIsChecking(false);
+      setHasAccess(true);
       return;
     }
 
     const checkAccess = async () => {
       try {
-        // Obtener las empresas a las que tiene acceso el usuario
-        const { data: userEmpresas, error: userEmpresasError } = await supabase
-          .from('usuarios_empresas')
+        console.log('Verificando acceso para usuario:', session.user.id, 'con rol:', role);
+        
+        // Obtener la empresa asignada al usuario desde la tabla usuarios
+        const { data: userData, error: userError } = await supabase
+          .from('usuarios')
           .select('empresa_id')
-          .eq('usuario_id', session.user.id);
+          .eq('id', session.user.id)
+          .single();
 
-        if (userEmpresasError) {
-          console.error('Error al obtener empresas del usuario:', userEmpresasError);
+        if (userError) {
+          console.error('Error al obtener empresa del usuario:', userError);
           setError('Error al verificar acceso');
           setIsChecking(false);
+          return;
+        }
+        
+        // Si el usuario no tiene empresa asignada
+        if (!userData || userData.empresa_id === null) {
+          console.log('Usuario sin empresa asignada');
+          setEmpresasPermitidas([]);
+          setIsChecking(false);
+          setHasAccess(false);
+          setError('No tienes una empresa asignada');
           return;
         }
 
@@ -58,21 +75,44 @@ export default function ClienteRestriction({
           return;
         }
 
-        // Combinar las empresas permitidas
-        const empresasIds = [
-          ...new Set([
-            ...(userEmpresas?.map((item: { empresa_id: number }) => item.empresa_id) || []),
-            ...(relacionadas?.map((item: { empresa_relacionada_id: number }) => item.empresa_relacionada_id) || [])
-          ])
-        ];
+        // Crear un array con la empresa del usuario
+        const empresasIds = userData.empresa_id ? [userData.empresa_id] : [];
+        
+        // Añadir las empresas relacionadas si existen
+        if (relacionadas && relacionadas.length > 0) {
+          relacionadas.forEach((item: { empresa_relacionada_id: number }) => {
+            if (!empresasIds.includes(item.empresa_relacionada_id)) {
+              empresasIds.push(item.empresa_relacionada_id);
+            }
+          });
+        }
 
+        console.log('Empresas permitidas:', empresasIds);
         setEmpresasPermitidas(empresasIds);
+
+        // Obtener nombres de empresas para mostrar en la UI
+        if (empresasIds.length > 0) {
+          const { data: empresasData, error: empresasError } = await supabase
+            .from('empresas')
+            .select('id, razon_social')
+            .in('id', empresasIds);
+
+          if (!empresasError && empresasData) {
+            const nombresMap: Record<number, string> = {};
+            empresasData.forEach((empresa: any) => {
+              nombresMap[empresa.id] = empresa.razon_social;
+            });
+            setNombresEmpresas(nombresMap);
+          }
+        }
 
         // Verificar si tiene acceso a la empresa específica
         if (empresaId && !empresasIds.includes(empresaId)) {
-          setError('No tienes acceso a esta empresa');
+          console.log('No tiene acceso a la empresa:', empresaId);
+          setError(`No tienes acceso a esta empresa (ID: ${empresaId})`);
           setHasAccess(false);
         } else {
+          console.log('Tiene acceso a la empresa:', empresaId || 'No se especificó empresa');
           setHasAccess(true);
         }
       } catch (error) {
@@ -84,12 +124,19 @@ export default function ClienteRestriction({
     };
 
     checkAccess();
-  }, [session, role, empresaId]);
+  }, [session, role, empresaId, router]);
 
   if (isChecking) {
-    return <Loading />;
+    return (
+      <div className="p-8 flex flex-col items-center justify-center">
+        <Skeleton className="h-12 w-64 mb-4" />
+        <Skeleton className="h-32 w-full max-w-2xl mb-4" />
+        <Skeleton className="h-24 w-full max-w-2xl" />
+      </div>
+    );
   }
 
+  // Si no es un usuario cliente, mostrar el contenido normalmente
   if (!session?.user || role !== 'cliente') {
     return <>{children}</>;
   }
@@ -97,45 +144,56 @@ export default function ClienteRestriction({
   // Si no tiene acceso, mostrar mensaje de error
   if (!hasAccess) {
     return (
-      <div className="p-4">
-        <Alert variant="destructive">
+      <div className="p-4 max-w-4xl mx-auto">
+        <Alert variant="destructive" className="mb-4">
+          <AlertCircle className="h-4 w-4 mr-2" />
           <AlertTitle>Acceso Denegado</AlertTitle>
           <AlertDescription>
             {error || 'No tienes acceso a esta empresa.'}
-            {empresasPermitidas.length > 0 && (
-              <>
-                <br />
-                Empresas permitidas: {empresasPermitidas.join(', ')}
-              </>
-            )}
           </AlertDescription>
         </Alert>
+        
         {empresasPermitidas.length > 0 ? (
-          <div className="mt-4">
-            <h3 className="text-lg font-semibold mb-2">Empresas a las que tienes acceso:</h3>
-            <ul className="list-disc pl-5">
+          <div className="mt-6 bg-white p-4 rounded-md shadow">
+            <h3 className="text-lg font-semibold mb-4">Empresas a las que tienes acceso:</h3>
+            <div className="space-y-2">
               {empresasPermitidas.map(empresaId => (
-                <li key={empresaId}>
-                  <button 
-                    className="text-blue-600 hover:underline"
+                <div key={empresaId} className="p-2 border rounded-md flex justify-between items-center">
+                  <span className="font-medium">
+                    {nombresEmpresas[empresaId] || `Empresa ID: ${empresaId}`}
+                  </span>
+                  <Button 
+                    size="sm"
                     onClick={() => router.push(`/reportes/afilados-por-cliente?empresa_id=${empresaId}`)}
                   >
-                    Ver reportes de esta empresa (ID: {empresaId})
-                  </button>
-                </li>
+                    Ver reportes
+                  </Button>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         ) : (
-          <p className="mt-4">No tienes empresas asignadas. Contacta al administrador para solicitar acceso.</p>
+          <Alert className="mt-4">
+            <AlertDescription>
+              No tienes empresas asignadas. Contacta al administrador para solicitar acceso.
+            </AlertDescription>
+          </Alert>
         )}
-        <div className="mt-4">
-          <button
+        
+        <div className="mt-6 flex justify-center">
+          <Button
             onClick={() => router.push('/dashboard')}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            variant="outline"
+            className="mr-2"
           >
-            Volver al inicio
-          </button>
+            Volver al Dashboard
+          </Button>
+          
+          <Button
+            onClick={() => router.refresh()}
+          >
+            Reintentar
+          </Button>
         </div>
       </div>
     );

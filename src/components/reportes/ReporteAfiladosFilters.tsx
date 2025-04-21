@@ -30,6 +30,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase-client';
 import { getEmpresasActivas } from '@/services/reporteService';
 import { Empresa } from '@/types/empresa';
 import { ReporteAfiladosPorClienteFilters } from '@/services/reporteService';
@@ -107,7 +108,7 @@ export default function ReporteAfiladosFilters({
     };
 
     loadEmpresas();
-  }, [empresaIdFijo]);
+  }, [empresaIdFijo, form]);
   
   // Función para cargar sucursales
   const loadSucursales = async (empresaId: string) => {
@@ -118,7 +119,6 @@ export default function ReporteAfiladosFilters({
     
     try {
       setIsLoading(true);
-      const { supabase } = await import('@/lib/supabase-client');
       
       const { data, error } = await supabase
         .from('sucursales')
@@ -150,7 +150,6 @@ export default function ReporteAfiladosFilters({
     const loadCatalogos = async () => {
       try {
         setIsLoading(true);
-        const { supabase } = await import('@/lib/supabase-client');
         
         // Cargar tipos de sierra
         const { data: dataTiposSierra, error: errorTiposSierra } = await supabase
@@ -202,8 +201,6 @@ export default function ReporteAfiladosFilters({
       <div className="text-lg font-semibold mb-4">Filtros del Reporte</div>
       
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-
-        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Selector de empresa */}
           <FormItem>
@@ -406,7 +403,7 @@ export default function ReporteAfiladosFilters({
             Generar Reporte
           </Button>
         </div>
-        </form>
+      </form>
     </div>
   );
 }

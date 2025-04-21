@@ -174,11 +174,15 @@ export default function DashboardLayout({
   const filteredNavCategories = useMemo(() => {
     if (!role) return [];
     
+    // Convertir el rol del usuario a minúsculas para comparación insensible a mayúsculas
+    const userRoleLower = role.toLowerCase();
+    console.log('Layout - User role (lowercase):', userRoleLower);
+    
     return navCategories.map(category => ({
       ...category,
       items: category.items.filter(item => 
         // Mostrar el elemento si no tiene requiredRoles o si el rol del usuario está en requiredRoles
-        !item.requiredRoles || item.requiredRoles.includes(role)
+        !item.requiredRoles || item.requiredRoles.some(r => r.toLowerCase() === userRoleLower)
       )
     })).filter(category => category.items.length > 0); // Eliminar categorías vacías
   }, [role]);
@@ -188,6 +192,9 @@ export default function DashboardLayout({
     return <div>Cargando...</div>;
   }
 
+  // Agregamos información de depuración
+  console.log('Layout - Current role:', role);
+  
   // Si el usuario no tiene un rol válido y no está cargando, mostrar un mensaje de error
   if (!role) {
     return (
@@ -211,6 +218,10 @@ export default function DashboardLayout({
               <div className="ml-2 md:ml-0 text-xl font-bold">Sistema de Gestión</div>
             </div>
             <div className="ml-auto flex items-center space-x-4">
+              <div className="mr-4 text-sm">
+                <span className="text-muted-foreground">Usuario:</span> {session?.user?.email} 
+                <span className="ml-2 text-muted-foreground">Rol:</span> <span className="font-medium">{role}</span>
+              </div>
               <ModeToggle />
               <Button variant="ghost" size="icon" onClick={logout}>
                 <LogOut className="h-5 w-5" />

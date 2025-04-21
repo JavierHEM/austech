@@ -1,5 +1,5 @@
 // src/hooks/use-auth.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
@@ -14,14 +14,11 @@ type RoleData = {
   modificado_en: string | null;
 };
 
-type UserWithRole = {
-  roles: RoleData;
-};
-
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
 
   const getUserRole = async (userId: string): Promise<UserRole> => {
@@ -71,7 +68,7 @@ export function useAuth() {
         return null;
       }
 
-      console.log('ID de rol del usuario:', userData.rol_id, 'Email:', userData.email); // Log para depuración
+      console.log('ID de rol del usuario:', userData.rol_id, 'Email:', userData.email);
       
       // Ahora obtenemos el nombre del rol desde la tabla roles
       console.log('Consultando tabla roles con ID:', userData.rol_id);
@@ -95,15 +92,43 @@ export function useAuth() {
         return null;
       }
 
+      // Convertir el nombre del rol a minúsculas para hacer la comparación insensible a mayúsculas
       const roleName = roleData.nombre.toLowerCase();
       console.log('Rol obtenido:', roleName, 'para usuario:', userData.email);
 
-      return roleName as UserRole;
+      // Convertir el string a uno de los tipos permitidos en UserRole
+      let typedRole: UserRole = null;
+      if (roleName === 'gerente' || roleName === 'administrador' || roleName === 'cliente') {
+        typedRole = roleName;
+      } else if (roleName.toLowerCase() === 'administrador') {
+        typedRole = 'administrador';
+      } else if (roleName.toLowerCase() === 'gerente') {
+        typedRole = 'gerente';
+      } else if (roleName.toLowerCase() === 'cliente') {
+        typedRole = 'cliente';
+      }
+
+      return typedRole;
     } catch (error) {
       console.error('Error al obtener el rol:', error);
       return null;
     }
   };
+
+  // Función para manejar la redirección basada en el rol
+  const handleRoleBasedRedirection = useCallback((userRole: UserRole) => {
+    if (isRedirecting) return; // Evitar múltiples redirecciones
+    
+    if (userRole === 'gerente' || userRole === 'administrador') {
+      setIsRedirecting(true);
+      console.log('Redirigiendo a /dashboard basado en rol:', userRole);
+      router.push('/dashboard');
+    } else if (userRole === 'cliente') {
+      setIsRedirecting(true);
+      console.log('Redirigiendo a /cliente basado en rol:', userRole);
+      router.push('/cliente');
+    }
+  }, [router, isRedirecting]);
 
   useEffect(() => {
     const initSession = async () => {
@@ -112,6 +137,7 @@ export function useAuth() {
         
         if (error) {
           console.error('Error al obtener la sesión:', error);
+          setLoading(false);
           return;
         }
 
@@ -119,10 +145,10 @@ export function useAuth() {
 
         if (session?.user) {
           const userRole = await getUserRole(session.user.id);
+          console.log('Rol obtenido para el usuario:', userRole);
           setRole(userRole);
-          if (userRole === 'gerente' || userRole === 'administrador') {
-            router.push('/dashboard');
-          }
+          
+          // No redirigir automáticamente aquí, solo al hacer login explícito
         }
       } catch (error) {
         console.error('Error al inicializar sesión:', error);
@@ -134,29 +160,35 @@ export function useAuth() {
     initSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event, session);
+      console.log('Auth event:', event, session?.user?.id);
       setSession(session);
       
       if (session?.user) {
         const userRole = await getUserRole(session.user.id);
+        console.log('Rol actualizado:', userRole);
         setRole(userRole);
-        if (userRole === 'gerente' || userRole === 'administrador') {
-          router.push('/dashboard');
+        
+        // Solo redirigir en eventos específicos (SIGNED_IN)
+        if (event === 'SIGNED_IN') {
+          handleRoleBasedRedirection(userRole);
         }
       } else {
         setRole(null);
-        router.push('/login');
+        if (event === 'SIGNED_OUT') {
+          router.push('/login');
+        }
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [router]);
+  }, [router, handleRoleBasedRedirection]);
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('Intentando login con:', { email, password: '********' });
+      console.log('Intentando login con:', email);
+      setIsRedirecting(false); // Resetear estado de redirección
       
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -164,16 +196,8 @@ export function useAuth() {
       });
 
       if (error) {
-        console.error('Error de autenticación detallado:', error);
-        
-        // Verificar si es un error de red o de Supabase
-        if (error.message.includes('Failed to fetch')) {
-          throw new Error('Error de conexión. Verifica tu conexión a internet.');
-        } else if (error.message.includes('Invalid login credentials')) {
-          throw new Error('Credenciales inválidas. Verifica tu email y contraseña.');
-        } else {
-          throw error;
-        }
+        console.error('Error de autenticación:', error);
+        throw error;
       }
       
       if (!data.user) {
@@ -181,11 +205,10 @@ export function useAuth() {
       }
 
       const userRole = await getUserRole(data.user.id);
-      if (userRole !== 'gerente' && userRole !== 'administrador') {
-        await supabase.auth.signOut();
-        throw new Error('No tienes acceso al sistema');
-      }
-
+      setRole(userRole);
+      
+      // La redirección se maneja en el listener de onAuthStateChange
+      
       return data;
     } catch (error: any) {
       console.error('Error en login:', error);
@@ -195,8 +218,11 @@ export function useAuth() {
 
   const logout = async () => {
     try {
+      setIsRedirecting(false);
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      // La redirección se maneja en el listener de onAuthStateChange
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
       throw error;
@@ -210,6 +236,6 @@ export function useAuth() {
     login,
     logout,
     isAuthenticated: !!session?.user,
-    isAuthorized: role === 'gerente' || role === 'administrador'
+    isAuthorized: role === 'gerente' || role === 'administrador' || role === 'cliente'
   };
 }

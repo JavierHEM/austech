@@ -35,6 +35,7 @@ interface UserFormData {
   email: string;
   password: string;
   role_id: string;
+  empresa_id: string;
   activo: boolean;
 }
 
@@ -50,6 +51,9 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
   const [initialLoading, setInitialLoading] = useState(isEditing);
   const [roles, setRoles] = useState<{ id: number; nombre: string }[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(true);
+  const [empresas, setEmpresas] = useState<{ id: number; razon_social: string }[]>([]);
+  const [loadingEmpresas, setLoadingEmpresas] = useState(false);
+  const [showEmpresaField, setShowEmpresaField] = useState(false);
 
   // Usar un enfoque más simple con useForm
   const form = useForm<UserFormData>({
@@ -58,6 +62,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
       email: '',
       password: '',
       role_id: '',
+      empresa_id: '',
       activo: true
     }
   });
@@ -89,6 +94,54 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
 
     fetchRoles();
   }, [supabase, toast]);
+  
+  // Cargar empresas cuando sea necesario
+  useEffect(() => {
+    const fetchEmpresas = async () => {
+      setLoadingEmpresas(true);
+      try {
+        const { data, error } = await supabase
+          .from('empresas')
+          .select('id, razon_social')
+          .eq('activo', true)
+          .order('razon_social');
+
+        if (error) throw error;
+
+        setEmpresas(data || []);
+        setLoadingEmpresas(false);
+      } catch (error) {
+        console.error('Error al cargar empresas:', error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar las empresas.',
+          variant: 'destructive',
+        });
+        setLoadingEmpresas(false);
+      }
+    };
+
+    // Solo cargar empresas si se muestra el campo
+    if (showEmpresaField) {
+      fetchEmpresas();
+    }
+  }, [showEmpresaField, supabase, toast]);
+  
+  // Mostrar/ocultar campo de empresa según el rol seleccionado
+  useEffect(() => {
+    const selectedRoleId = form.watch('role_id');
+    if (selectedRoleId) {
+      const roleId = parseInt(selectedRoleId);
+      // Asumiendo que el rol con ID 3 es 'Cliente' según tu trigger
+      const isClientRole = roleId === 3;
+      setShowEmpresaField(isClientRole);
+      
+      // Si no es cliente, limpiar el campo empresa_id
+      if (!isClientRole) {
+        form.setValue('empresa_id', '');
+      }
+    }
+  }, [form.watch('role_id')]);
 
   // Cargar datos del usuario si estamos en modo edición
   useEffect(() => {
@@ -120,11 +173,17 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
           console.log('Datos del usuario cargados:', userData);
           
           // Establecer los valores en el formulario
-          form.setValue('nombre', userData.nombre || '');
+          form.setValue('nombre', userData.nombre_completo || '');
           form.setValue('email', userData.email || '');
           form.setValue('password', ''); // No mostramos la contraseña existente
-          form.setValue('role_id', (userData.role_id || '').toString());
+          form.setValue('role_id', (userData.rol_id || '').toString());
+          form.setValue('empresa_id', (userData.empresa_id || '').toString());
           form.setValue('activo', userData.activo !== false);
+          
+          // Verificar si es rol cliente para mostrar campo de empresa
+          const roleId = userData.rol_id;
+          const isClientRole = roleId === 3;
+          setShowEmpresaField(isClientRole);
           
           toast({
             title: 'Éxito',
@@ -156,12 +215,19 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
       if (isEditing && userId) {
         // Preparar datos para actualización
         const updateData: any = {
-          nombre: data.nombre,
+          nombre_completo: data.nombre,
           email: data.email,
-          role_id: parseInt(data.role_id),
+          rol_id: parseInt(data.role_id),
           activo: data.activo,
           modificado_en: new Date().toISOString()
         };
+        
+        // Agregar empresa_id solo si es rol cliente y se seleccionó una empresa
+        if (parseInt(data.role_id) === 3 && data.empresa_id) {
+          updateData.empresa_id = parseInt(data.empresa_id);
+        } else {
+          updateData.empresa_id = null;
+        }
 
         // Solo incluir contraseña si se proporciona una nueva
         if (data.password && data.password.trim() !== '') {
@@ -187,20 +253,33 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
           return;
         }
 
-        // Crear nuevo usuario
-        const { error } = await supabase
-          .from('usuarios')
-          .insert({
-            nombre: data.nombre,
+        // Crear nuevo usuario a través de nuestra API para evitar cerrar la sesión actual
+        const response = await fetch('/api/usuarios/crear', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             email: data.email,
             password: data.password,
-            role_id: parseInt(data.role_id),
-            activo: data.activo,
-            creado_en: new Date().toISOString(),
-            modificado_en: new Date().toISOString()
-          });
-
-        if (error) throw error;
+            nombre_completo: data.nombre,
+            rol_id: parseInt(data.role_id),
+            empresa_id: parseInt(data.role_id) === 3 && data.empresa_id ? parseInt(data.empresa_id) : null,
+            activo: data.activo
+          }),
+        });
+        
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(responseData.error || 'Error al crear el usuario');
+        }
+        
+        const authData = responseData.data;
+        
+        // El usuario ha sido creado exitosamente en el servidor
+        // No necesitamos verificar la tabla usuarios porque el endpoint ya lo hizo por nosotros
+        console.log('Usuario creado exitosamente:', authData);
       }
 
       toast({
@@ -234,6 +313,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
     const nombre = form.getValues('nombre');
     const email = form.getValues('email');
     const role_id = form.getValues('role_id');
+    const empresa_id = form.getValues('empresa_id');
     
     let isValid = true;
     
@@ -257,6 +337,15 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
       form.setError('role_id', { 
         type: 'manual', 
         message: 'Debe seleccionar un rol' 
+      });
+      isValid = false;
+    }
+    
+    // Validar empresa_id si el rol es cliente (ID 3)
+    if (role_id === '3' && !empresa_id) {
+      form.setError('empresa_id', { 
+        type: 'manual', 
+        message: 'Debe seleccionar una empresa para usuarios con rol Cliente' 
       });
       isValid = false;
     }
@@ -365,6 +454,38 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
               )}
             </FormItem>
           </div>
+
+        {showEmpresaField && (
+          <FormItem>
+            <FormLabel>Empresa</FormLabel>
+            <Select 
+              value={form.watch('empresa_id')} 
+              onValueChange={(value) => form.setValue('empresa_id', value)}
+              disabled={loadingEmpresas}
+            >
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingEmpresas ? "Cargando empresas..." : "Seleccione una empresa"} />
+                </SelectTrigger>
+              </FormControl>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Empresas</SelectLabel>
+                  {empresas.map(empresa => (
+                    <SelectItem key={empresa.id} value={empresa.id.toString()}>
+                      {empresa.razon_social}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            {form.formState.errors.empresa_id && (
+              <p className="text-sm font-medium text-destructive">
+                {form.formState.errors.empresa_id.message}
+              </p>
+            )}
+          </FormItem>
+        )}
 
           <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">

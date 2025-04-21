@@ -165,7 +165,8 @@ export default function EmpresasPage() {
                         <Button 
                           variant="outline" 
                           size="icon"
-                          onClick={() => router.push(`/empresas/${empresa.id}/sucursales`)}
+                          onClick={() => router.push(`/empresas/editar/${empresa.id}/sucursales`)}
+                          title="Ver sucursales"
                         >
                           <Building className="h-4 w-4" />
                         </Button>
