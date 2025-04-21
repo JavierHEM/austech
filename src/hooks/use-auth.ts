@@ -26,31 +26,64 @@ export function useAuth() {
 
   const getUserRole = async (userId: string): Promise<UserRole> => {
     try {
+      console.log('Obteniendo rol para el usuario ID:', userId);
+      
+      // Verificar si el usuario existe en la tabla usuarios
+      console.log('Consultando tabla usuarios con ID:', userId);
+      
       // Primero intentamos obtener el usuario con su rol_id
       const { data: userData, error: userError } = await supabase
         .from('usuarios')
-        .select('rol_id')
+        .select('rol_id, email, activo')
         .eq('id', userId)
         .single();
+      
+      // Imprimir la respuesta completa para depuración
+      console.log('Respuesta de consulta a usuarios:', { userData, userError });
 
       if (userError) {
         console.error('Error al obtener el usuario:', userError);
+        
+        // Si el error es que no se encontró el usuario, intentamos crearlo
+        if (userError.code === 'PGRST116') { // Código para 'no se encontró ningún registro'
+          console.log('Usuario no encontrado en la tabla usuarios. Se debe crear un registro.');
+          
+          // Obtener información del usuario desde auth
+          const { data: authUser } = await supabase.auth.getUser(userId);
+          
+          if (authUser?.user) {
+            console.log('Información del usuario desde auth:', authUser.user);
+            // Aquí podrías implementar lógica para crear automáticamente el usuario
+            // con un rol predeterminado si lo deseas
+          }
+        }
+        
         return null;
       }
       
-      if (!userData || userData.rol_id === null) {
-        console.error('Usuario sin rol_id asignado:', userId);
+      if (!userData) {
+        console.error('No se encontraron datos del usuario:', userId);
+        return null;
+      }
+      
+      if (userData.rol_id === null) {
+        console.error('Usuario sin rol_id asignado:', userId, 'Email:', userData.email);
         return null;
       }
 
-      console.log('ID de rol del usuario:', userData.rol_id); // Log para depuración
+      console.log('ID de rol del usuario:', userData.rol_id, 'Email:', userData.email); // Log para depuración
       
       // Ahora obtenemos el nombre del rol desde la tabla roles
+      console.log('Consultando tabla roles con ID:', userData.rol_id);
+      
       const { data: roleData, error: roleError } = await supabase
         .from('roles')
-        .select('nombre')
+        .select('nombre, id')
         .eq('id', userData.rol_id)
         .single();
+      
+      // Imprimir la respuesta completa para depuración
+      console.log('Respuesta de consulta a roles:', { roleData, roleError });
 
       if (roleError) {
         console.error('Error al obtener el rol:', roleError);
@@ -58,12 +91,12 @@ export function useAuth() {
       }
       
       if (!roleData || !roleData.nombre) {
-        console.error('No se encontró el nombre del rol');
+        console.error('No se encontró el nombre del rol para rol_id:', userData.rol_id);
         return null;
       }
 
       const roleName = roleData.nombre.toLowerCase();
-      console.log('Rol obtenido:', roleName);
+      console.log('Rol obtenido:', roleName, 'para usuario:', userData.email);
 
       return roleName as UserRole;
     } catch (error) {

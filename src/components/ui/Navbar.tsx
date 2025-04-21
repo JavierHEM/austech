@@ -7,16 +7,16 @@ import { Menu, X, LogOut, User, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function Navbar() {
-  const { user, session, signOut } = useAuth();
+  const { session, logout, role } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const { toast } = useToast();
 
-  // Obtener el rol del usuario desde la sesión
-  const userRole = session?.user?.user_metadata?.role || '';
+  // Usar el rol directamente del hook useAuth
+  const userRole = role || '';
   
   // Determinar los roles del usuario
   const isGerente = userRole === 'gerente';
@@ -29,7 +29,7 @@ export default function Navbar() {
 
   const handleSignOut = async () => {
     try {
-      await signOut();
+      await logout();
       toast({
         title: 'Sesión cerrada',
         description: 'Has cerrado sesión correctamente.',
@@ -46,10 +46,10 @@ export default function Navbar() {
 
   // Obtener las iniciales del usuario para el avatar
   const getUserInitials = () => {
-    if (!user?.email) return 'U';
+    if (!session?.user?.email) return 'U';
     
-    const email = user.email;
-    const name = user.user_metadata?.name || email;
+    const email = session.user.email;
+    const name = session.user.user_metadata?.name || email;
     
     return name
       .split(' ')
@@ -118,7 +118,7 @@ export default function Navbar() {
             <div className="hidden md:flex items-center">
               <UserMenu 
                 userInitials={getUserInitials()}
-                email={user?.email || ''} 
+                email={session?.user?.email || ''} 
                 onSignOut={handleSignOut}
               />
             </div>
@@ -193,7 +193,7 @@ export default function Navbar() {
                 </Avatar>
               </div>
               <div className="ml-3">
-                <div className="text-base font-medium">{user?.email}</div>
+                <div className="text-base font-medium">{session?.user?.email}</div>
                 <div className="text-sm font-medium text-gray-500">
                   {userRole}
                 </div>
