@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { FileSpreadsheet, Info, Eye, Filter } from 'lucide-react';
@@ -18,14 +19,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import ReporteAfiladosFilters from '@/components/reportes/ReporteAfiladosFilters';
 import { getReporteAfiladosPorCliente, ReporteAfiladosPorClienteFilters, ReporteAfiladoItem } from '@/services/reporteService';
+import ClienteRestriction from '@/components/auth/ClienteRestriction';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ReporteAfiladosPorClientePage() {
+  const searchParams = useSearchParams();
+  const empresaIdParam = searchParams ? searchParams.get('empresa_id') : null;
+  
+  const { userRole } = useAuth();
   const [reporteItems, setReporteItems] = useState<ReporteAfiladoItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filtrosAplicados, setFiltrosAplicados] = useState<ReporteAfiladosPorClienteFilters | null>(null);
   const [selectedItem, setSelectedItem] = useState<ReporteAfiladoItem | null>(null);
   const [showFilters, setShowFilters] = useState(true);
+  
+  // Aplicar filtros iniciales si se proporciona un ID de empresa en la URL (para usuarios con rol cliente)
+  useEffect(() => {
+    if (empresaIdParam && userRole === 'cliente') {
+      const initialFilters: ReporteAfiladosPorClienteFilters = {
+        empresa_id: Number(empresaIdParam),
+        fecha_desde: null,
+        fecha_hasta: null,
+        sucursal_id: null,
+        tipo_sierra_id: null,
+        tipo_afilado_id: null,
+        activo: true
+      };
+      
+      handleFilter(initialFilters);
+    }
+  }, [empresaIdParam, userRole]);
 
   // Manejar la aplicación de filtros
   const handleFilter = async (filters: ReporteAfiladosPorClienteFilters) => {
@@ -108,279 +132,299 @@ export default function ReporteAfiladosPorClientePage() {
   const handleViewDetails = (item: ReporteAfiladoItem) => {
     setSelectedItem(item);
   };
-  
+
   // Alternar visibilidad de filtros
   const toggleFilters = () => {
     setShowFilters(!showFilters);
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight">Reporte de Afilados por Cliente</h1>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={toggleFilters}>
-            <Filter className="mr-2 h-4 w-4" />
-            {showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
-          </Button>
-        </div>
-      </div>
-
-      {showFilters && (
-        <ReporteAfiladosFilters onFilter={handleFilter} />
-      )}
-
-      <Card>
-        <CardHeader className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <CardTitle>Reporte de Afilados por Cliente</CardTitle>
-            <CardDescription>
-              Visualiza y exporta información de afilados por cliente
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleFilters}
-              className="h-8 gap-1"
-            >
-              <Filter className="h-3.5 w-3.5" />
-              {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportToExcel}
-              disabled={reporteItems.length === 0 || isLoading}
-              className="h-8 gap-1"
-            >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              Exportar a Excel
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {reporteItems.length === 0 && !isLoading && !error && filtrosAplicados && (
-            <Alert className="mb-4">
-              <Info className="h-4 w-4" />
-              <AlertDescription>No se encontraron registros con los filtros aplicados.</AlertDescription>
-            </Alert>
-          )}
-
-          <Tabs defaultValue="tabla" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="tabla">Vista de Tabla</TabsTrigger>
-              <TabsTrigger value="resumen">Resumen</TabsTrigger>
-            </TabsList>
+    <ClienteRestriction empresaId={empresaIdParam}>
+      <div className="container mx-auto py-6 space-y-6">
+        <Card>
+          <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <CardTitle className="text-2xl font-bold tracking-tight">
+                <div className="flex items-center">
+                  <FileSpreadsheet className="mr-2 h-6 w-6" />
+                  Reporte de Afilados por Cliente
+                </div>
+              </CardTitle>
+              <CardDescription>
+                Visualiza y analiza los afilados realizados para cada cliente
+              </CardDescription>
+            </div>
             
-            <TabsContent value="tabla" className="w-full">
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Empresa</TableHead>
-                      <TableHead>Sucursal</TableHead>
-                      <TableHead>Tipo Sierra</TableHead>
-                      <TableHead>Código Sierra</TableHead>
-                      <TableHead>Tipo Afilado</TableHead>
-                      <TableHead>Estado Sierra</TableHead>
-                      <TableHead>Fecha Afilado</TableHead>
-                      <TableHead>Activo</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      renderSkeletons()
-                    ) : (
-                      reporteItems.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{item.empresa}</TableCell>
-                          <TableCell>{item.sucursal}</TableCell>
-                          <TableCell>{item.tipo_sierra}</TableCell>
-                          <TableCell>{item.codigo_sierra}</TableCell>
-                          <TableCell>{item.tipo_afilado}</TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              item.estado_sierra === 'Disponible' ? 'success' :
-                              item.estado_sierra === 'En afilado' ? 'outline' :
-                              'default'
-                            }>
-                              {item.estado_sierra}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es })}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={item.activo ? 'success' : 'destructive'}>
-                              {item.activo ? 'Sí' : 'No'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => handleViewDetails(item)}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Detalles del Afilado</DialogTitle>
-                                  <DialogDescription>
-                                    Información completa del registro de afilado
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="grid grid-cols-2 gap-4 py-4">
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Empresa:</p>
-                                    <p className="text-sm">{item.empresa}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Sucursal:</p>
-                                    <p className="text-sm">{item.sucursal}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Tipo Sierra:</p>
-                                    <p className="text-sm">{item.tipo_sierra}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Código Sierra:</p>
-                                    <p className="text-sm">{item.codigo_sierra}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Tipo Afilado:</p>
-                                    <p className="text-sm">{item.tipo_afilado}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Estado Sierra:</p>
-                                    <p className="text-sm">{item.estado_sierra}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Fecha Afilado:</p>
-                                    <p className="text-sm">{format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es })}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Fecha Registro:</p>
-                                    <p className="text-sm">{format(new Date(item.fecha_registro), 'dd/MM/yyyy', { locale: es })}</p>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <p className="text-sm font-medium">Activo:</p>
-                                    <p className="text-sm">{item.activo ? 'Sí' : 'No'}</p>
-                                  </div>
-                                  <div className="space-y-1 col-span-2">
-                                    <p className="text-sm font-medium">Observaciones:</p>
-                                    <p className="text-sm">{item.observaciones || 'Sin observaciones'}</p>
-                                  </div>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleFilters}
+              >
+                <Filter className="mr-2 h-4 w-4" />
+                {showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+              </Button>
+              
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleExportToExcel}
+                disabled={reporteItems.length === 0 || isLoading}
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Exportar a Excel
+              </Button>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="space-y-4">
+            {/* Filtros */}
+            {showFilters && (
+              <ReporteAfiladosFilters 
+                onFilter={handleFilter} 
+                isLoading={isLoading} 
+                empresaIdFijo={userRole === 'cliente' ? empresaIdParam : undefined}
+              />
+            )}
+
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {reporteItems.length === 0 && !isLoading && !error && filtrosAplicados && (
+              <Alert className="mb-4">
+                <Info className="h-4 w-4" />
+                <AlertDescription>No se encontraron registros con los filtros aplicados.</AlertDescription>
+              </Alert>
+            )}
+
+            <Tabs defaultValue="tabla">
+              <TabsList>
+                <TabsTrigger value="tabla">Tabla</TabsTrigger>
+                <TabsTrigger value="resumen">Resumen</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="tabla" className="space-y-4">
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Empresa</TableHead>
+                        <TableHead>Sucursal</TableHead>
+                        <TableHead>Tipo Sierra</TableHead>
+                        <TableHead>Código</TableHead>
+                        <TableHead>Tipo Afilado</TableHead>
+                        <TableHead>Fecha Afilado</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoading ? (
+                        renderSkeletons()
+                      ) : reporteItems.length > 0 ? (
+                        reporteItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{item.empresa}</TableCell>
+                            <TableCell>{item.sucursal}</TableCell>
+                            <TableCell>{item.tipo_sierra}</TableCell>
+                            <TableCell>{item.codigo_sierra}</TableCell>
+                            <TableCell>{item.tipo_afilado}</TableCell>
+                            <TableCell>
+                              {format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es })}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={item.activo ? "default" : "secondary"}>
+                                {item.activo ? 'Activo' : 'Inactivo'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={() => handleViewDetails(item)}>
+                                          <Eye className="h-4 w-4" />
+                                        </Button>
+                                      </DialogTrigger>
+                                      <DialogContent>
+                                        <DialogHeader>
+                                          <DialogTitle>Detalles del Afilado</DialogTitle>
+                                          <DialogDescription>
+                                            Información completa del registro de afilado
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        {selectedItem && (
+                                          <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                              <div>
+                                                <h4 className="text-sm font-medium">Empresa</h4>
+                                                <p className="text-sm">{selectedItem.empresa}</p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Sucursal</h4>
+                                                <p className="text-sm">{selectedItem.sucursal}</p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Tipo Sierra</h4>
+                                                <p className="text-sm">{selectedItem.tipo_sierra}</p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Código Sierra</h4>
+                                                <p className="text-sm">{selectedItem.codigo_sierra}</p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Tipo Afilado</h4>
+                                                <p className="text-sm">{selectedItem.tipo_afilado}</p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Estado Sierra</h4>
+                                                <p className="text-sm">{selectedItem.estado_sierra}</p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Fecha Afilado</h4>
+                                                <p className="text-sm">
+                                                  {format(new Date(selectedItem.fecha_afilado), 'dd/MM/yyyy', { locale: es })}
+                                                </p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Fecha Registro</h4>
+                                                <p className="text-sm">
+                                                  {format(new Date(selectedItem.fecha_registro), 'dd/MM/yyyy', { locale: es })}
+                                                </p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Estado</h4>
+                                                <Badge variant={selectedItem.activo ? "default" : "secondary"}>
+                                                  {selectedItem.activo ? 'Activo' : 'Inactivo'}
+                                                </Badge>
+                                              </div>
+                                            </div>
+                                            {selectedItem.observaciones && (
+                                              <div>
+                                                <h4 className="text-sm font-medium">Observaciones</h4>
+                                                <p className="text-sm whitespace-pre-wrap">{selectedItem.observaciones}</p>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </DialogContent>
+                                    </Dialog>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Ver detalles</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={8} className="h-24 text-center">
+                            {filtrosAplicados ? 'No se encontraron resultados' : 'Aplica filtros para ver resultados'}
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="resumen" className="w-full">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Resumen por sucursal */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Afilados por Sucursal</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoading ? (
-                      <Skeleton className="h-[200px] w-full" />
-                    ) : reporteItems.length > 0 ? (
-                      <div className="space-y-2">
-                        {Object.entries(
-                          reporteItems.reduce((acc, item) => {
-                            acc[item.sucursal] = (acc[item.sucursal] || 0) + 1;
-                            return acc;
-                          }, {} as Record<string, number>)
-                        ).map(([sucursal, count]) => (
-                          <div key={sucursal} className="flex justify-between items-center">
-                            <span>{sucursal}</span>
-                            <Badge variant="outline">{count}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
-                    )}
-                  </CardContent>
-                </Card>
-                
-                {/* Resumen por tipo de sierra */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Afilados por Tipo de Sierra</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoading ? (
-                      <Skeleton className="h-[200px] w-full" />
-                    ) : reporteItems.length > 0 ? (
-                      <div className="space-y-2">
-                        {Object.entries(
-                          reporteItems.reduce((acc, item) => {
-                            acc[item.tipo_sierra] = (acc[item.tipo_sierra] || 0) + 1;
-                            return acc;
-                          }, {} as Record<string, number>)
-                        ).map(([tipo, count]) => (
-                          <div key={tipo} className="flex justify-between items-center">
-                            <span>{tipo}</span>
-                            <Badge variant="outline">{count}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
-                    )}
-                  </CardContent>
-                </Card>
-                
-                {/* Resumen por tipo de afilado */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Afilados por Tipo de Afilado</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {isLoading ? (
-                      <Skeleton className="h-[200px] w-full" />
-                    ) : reporteItems.length > 0 ? (
-                      <div className="space-y-2">
-                        {Object.entries(
-                          reporteItems.reduce((acc, item) => {
-                            acc[item.tipo_afilado] = (acc[item.tipo_afilado] || 0) + 1;
-                            return acc;
-                          }, {} as Record<string, number>)
-                        ).map(([tipo, count]) => (
-                          <div key={tipo} className="flex justify-between items-center">
-                            <span>{tipo}</span>
-                            <Badge variant="outline">{count}</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="resumen" className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Resumen por empresa */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Afilados por Empresa</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoading ? (
+                        <Skeleton className="h-[200px] w-full" />
+                      ) : reporteItems.length > 0 ? (
+                        <div className="space-y-2">
+                          {Object.entries(
+                            reporteItems.reduce((acc: Record<string, number>, item: ReporteAfiladoItem) => {
+                              acc[item.empresa] = (acc[item.empresa] || 0) + 1;
+                              return acc;
+                            }, {})
+                          ).map(([empresa, count]) => (
+                            <div key={empresa} className="flex justify-between items-center">
+                              <span>{empresa}</span>
+                              <Badge variant="outline">{count}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Resumen por sucursal */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Afilados por Sucursal</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoading ? (
+                        <Skeleton className="h-[200px] w-full" />
+                      ) : reporteItems.length > 0 ? (
+                        <div className="space-y-2">
+                          {Object.entries(
+                            reporteItems.reduce((acc: Record<string, number>, item: ReporteAfiladoItem) => {
+                              acc[item.sucursal] = (acc[item.sucursal] || 0) + 1;
+                              return acc;
+                            }, {})
+                          ).map(([sucursal, count]) => (
+                            <div key={sucursal} className="flex justify-between items-center">
+                              <span>{sucursal}</span>
+                              <Badge variant="outline">{count}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Resumen por tipo de sierra */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Afilados por Tipo de Sierra</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {isLoading ? (
+                        <Skeleton className="h-[200px] w-full" />
+                      ) : reporteItems.length > 0 ? (
+                        <div className="space-y-2">
+                          {Object.entries(
+                            reporteItems.reduce((acc: Record<string, number>, item: ReporteAfiladoItem) => {
+                              acc[item.tipo_sierra] = (acc[item.tipo_sierra] || 0) + 1;
+                              return acc;
+                            }, {})
+                          ).map(([tipo, count]) => (
+                            <div key={tipo} className="flex justify-between items-center">
+                              <span>{tipo}</span>
+                              <Badge variant="outline">{count}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No hay datos disponibles</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </ClienteRestriction>
   );
 }

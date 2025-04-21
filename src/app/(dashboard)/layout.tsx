@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -32,6 +32,7 @@ interface NavItem {
   href: string;
   icon: React.ReactNode;
   isActive: (pathname: string | null) => boolean;
+  requiredRoles?: string[]; // Roles que pueden ver este elemento de navegación
 }
 
 // Definición de categorías para el menú
@@ -40,7 +41,7 @@ interface NavCategory {
   items: NavItem[];
 }
 
-// Elementos de navegación organizados por categorías
+// Elementos de navegación organizados por categorías con control de acceso por rol
 const navCategories: NavCategory[] = [
   {
     name: '',
@@ -49,37 +50,43 @@ const navCategories: NavCategory[] = [
         label: 'Inicio',
         href: '/dashboard',
         icon: <Home className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname === '/dashboard' : false
+        isActive: (pathname) => pathname ? pathname === '/dashboard' : false,
+        requiredRoles: ['gerente', 'administrador', 'cliente'] // Todos los roles pueden ver el inicio
       },
       {
         label: 'Empresas',
         href: '/empresas',
         icon: <Building className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/empresas') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/empresas') : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver empresas
       },
       {
         label: 'Sucursales',
         href: '/sucursales',
         icon: <Map className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/sucursales') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/sucursales') : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver sucursales
       },
       {
         label: 'Sierras',
         href: '/sierras',
         icon: <Scissors className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? (pathname.startsWith('/sierras') && pathname !== '/sierras/buscar' && !pathname.startsWith('/tipos-sierra')) : false
+        isActive: (pathname) => pathname ? (pathname.startsWith('/sierras') && pathname !== '/sierras/buscar' && !pathname.startsWith('/tipos-sierra')) : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver sierras
       },
       {
         label: 'Buscar Sierra',
         href: '/sierras/buscar',
         icon: <Barcode className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname === '/sierras/buscar' : false
+        isActive: (pathname) => pathname ? pathname === '/sierras/buscar' : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden buscar sierras
       },
       {
         label: 'Afilados',
         href: '/afilados',
         icon: <Scissors className="h-5 w-5 rotate-180" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/afilados') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/afilados') : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver afilados
       }
     ]
   },
@@ -90,13 +97,15 @@ const navCategories: NavCategory[] = [
         label: 'Salidas Masivas',
         href: '/salidas-masivas',
         icon: <ArrowDownToLine className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/salidas-masivas') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/salidas-masivas') : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver salidas masivas
       },
       {
         label: 'Bajas Masivas',
         href: '/bajas-masivas',
         icon: <XCircle className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/bajas-masivas') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/bajas-masivas') : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver bajas masivas
       }
     ]
   },
@@ -107,7 +116,8 @@ const navCategories: NavCategory[] = [
         label: 'Afilados por Cliente',
         href: '/reportes/afilados-por-cliente',
         icon: <FileSpreadsheet className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/reportes/afilados-por-cliente') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/reportes/afilados-por-cliente') : false,
+        requiredRoles: ['gerente', 'administrador', 'cliente'] // Todos los roles pueden ver reportes
       }
     ]
   },
@@ -118,13 +128,15 @@ const navCategories: NavCategory[] = [
         label: 'Tipos de Sierra',
         href: '/tipos-sierra',
         icon: <Scissors className="h-5 w-5 rotate-45" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/tipos-sierra') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/tipos-sierra') : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver tipos de sierra
       },
       {
         label: 'Tipos de Afilado',
         href: '/tipos-afilado',
         icon: <Scissors className="h-5 w-5 rotate-90" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/tipos-afilado') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/tipos-afilado') : false,
+        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver tipos de afilado
       }
     ]
   },
@@ -135,7 +147,8 @@ const navCategories: NavCategory[] = [
         label: 'Usuarios',
         href: '/usuarios',
         icon: <Users className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname.startsWith('/usuarios') : false
+        isActive: (pathname) => pathname ? pathname.startsWith('/usuarios') : false,
+        requiredRoles: ['gerente'] // Solo gerentes pueden ver usuarios
       }
     ]
   }
@@ -149,34 +162,44 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { signOut } = useAuth();
+  const pathname = usePathname();
+  const { signOut, user, session, isLoading, userRole } = useAuth();
 
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
-
-  // Verificar si el usuario está autenticado y tiene un rol válido
-  const { user, session, isLoading, userRole } = useAuth();
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+  };
   
+  // Filtrar los elementos de navegación según el rol del usuario
+  const filteredNavCategories = useMemo(() => {
+    if (!userRole) return [];
+    
+    return navCategories.map(category => ({
+      ...category,
+      items: category.items.filter(item => 
+        // Mostrar el elemento si no tiene requiredRoles o si el rol del usuario está en requiredRoles
+        !item.requiredRoles || item.requiredRoles.includes(userRole)
+      )
+    })).filter(category => category.items.length > 0); // Eliminar categorías vacías
+  }, [userRole]);
+
   // Si está cargando, mostrar un indicador de carga
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-        <span className="ml-2">Cargando...</span>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
-  
-  // Si no hay sesión o usuario, redirigir a login (esto se maneja en el cliente)
+
+  // Si no hay sesión o usuario, redirigir a login
   if (!session || !user) {
-    // El redireccionamiento se maneja en el useEffect
     return null;
   }
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background">
+      <div className="flex flex-col min-h-screen bg-background">
         <div className="flex min-h-screen flex-col">
         {/* Barra superior */}
         <header className="bg-background border-b sticky top-0 z-30">
@@ -203,7 +226,7 @@ export default function DashboardLayout({
             {/* Reducir espaciado en la navegación */}
             <nav className="py-0.5 px-1">
               <div className="space-y-1">
-                {navCategories.map((category, index) => (
+                {filteredNavCategories.map((category, index) => (
                   <div key={index} className="space-y-1">
                     {category.name && (
                       <h3 className="text-xs font-semibold text-muted-foreground tracking-wider uppercase px-3">
@@ -250,7 +273,7 @@ export default function DashboardLayout({
                 </div>
                 <nav className="py-1 px-2">
                   <div className="space-y-2">
-                    {navCategories.map((category, index) => (
+                    {filteredNavCategories.map((category, index) => (
                       <div key={index} className="space-y-1">
                         {category.name && (
                           <h3 className="text-xs font-semibold text-muted-foreground tracking-wider uppercase px-3">

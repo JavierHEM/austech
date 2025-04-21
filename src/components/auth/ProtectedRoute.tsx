@@ -1,65 +1,46 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import Loading from '@/components/ui/Loading';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
-  rolesPermitidos?: string[];
+  children: ReactNode;
+  requiredRoles?: string[];
 }
 
-export default function NewProtectedRoute({ children, rolesPermitidos = [] }: ProtectedRouteProps) {
-  const router = useRouter();
+export default function ProtectedRoute({ 
+  children, 
+  requiredRoles = [] 
+}: ProtectedRouteProps) {
   const { user, session, isLoading, userRole } = useAuth();
-  const [isChecking, setIsChecking] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    // Solo verificar cuando isLoading sea false
+    // Solo redirigir si no está cargando para evitar redirecciones prematuras
     if (!isLoading) {
-      console.log('NewProtectedRoute: Verificando acceso', {
-        user,
-        session,
-        userRole
-      });
-
-      // Dar un pequeño tiempo para asegurar que los datos estén disponibles
-      const timer = setTimeout(() => {
-        // Verificar si el usuario está autenticado
-        if (!session || !user) {
-          console.log('NewProtectedRoute: Usuario no autenticado, redirigiendo a login');
-          router.replace('/login');
-          return;
-        }
-
-        // Verificar si el usuario tiene un rol válido
-        if (!userRole) {
-          console.log('NewProtectedRoute: Usuario sin rol válido, redirigiendo a login');
-          router.replace('/login');
-          return;
-        }
-
-        // Verificar si el rol del usuario está en la lista de roles permitidos
-        if (rolesPermitidos.length > 0 && !rolesPermitidos.includes(userRole)) {
-          console.log(`NewProtectedRoute: Usuario con rol ${userRole} no tiene permiso para acceder a esta página`);
-          router.replace('/dashboard');
-          return;
-        }
-
-        console.log(`NewProtectedRoute: Usuario autenticado con rol ${userRole}, permitiendo acceso`);
-        setIsChecking(false);
-      }, 500);
-
-      return () => clearTimeout(timer);
+      // Si no hay sesión, redirigir al login
+      if (!session) {
+        console.log('No hay sesión, redirigiendo a /login');
+        router.push('/login');
+        return;
+      }
+      
+      // Si hay roles requeridos y el usuario no tiene el rol adecuado
+      if (requiredRoles.length > 0 && (!userRole || !requiredRoles.includes(userRole))) {
+        console.log(`Usuario sin rol requerido (${userRole}), redirigiendo a /dashboard`);
+        router.push('/dashboard');
+        return;
+      }
     }
-  }, [isLoading, user, session, userRole, router, rolesPermitidos]);
+  }, [isLoading, session, userRole, router, requiredRoles]);
 
-  // Mostrar loading mientras se verifica la autenticación
-  if (isLoading || isChecking) {
-    return <Loading fullScreen />;
+  // Mostrar pantalla de carga mientras se verifica la autenticación
+  if (isLoading) {
+    return <Loading />;
   }
 
-  // Si llegamos aquí, el usuario está autenticado y tiene un rol válido
+  // Renderizar los children solo si hay sesión y el usuario tiene el rol requerido (o no hay rol requerido)
   return <>{children}</>;
 }

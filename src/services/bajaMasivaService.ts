@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase';
 import { BajaMasiva, BajaMasivaConRelaciones, BajaMasivaInput } from '@/types/bajaMasiva';
 import { Sierra, SierraConRelaciones } from '@/types/sierra';
+import { shouldUseMockData, mockSupabaseResponse, mockBajasMasivas, mockSierras } from '@/lib/mock-data';
 
 const supabase = createClient();
 
@@ -31,6 +32,13 @@ interface SierraBajaResponse {
  * Obtiene todas las bajas masivas con sus relaciones
  */
 export const getBajasMasivas = async (): Promise<BajaMasivaConRelaciones[]> => {
+  // Usar datos simulados en modo desarrollo
+  if (shouldUseMockData()) {
+    console.log('Usando datos simulados para obtener bajas masivas');
+    const { data } = await mockSupabaseResponse(mockBajasMasivas);
+    return data || [];
+  }
+  
   try {
     const { data, error } = await supabase
       .from('bajas_masivas')
@@ -53,6 +61,24 @@ export const getBajasMasivas = async (): Promise<BajaMasivaConRelaciones[]> => {
  * Obtiene una baja masiva por su ID con todas sus sierras relacionadas
  */
 export const getBajaMasivaById = async (id: number): Promise<BajaMasivaConRelaciones | null> => {
+  // Usar datos simulados en modo desarrollo
+  if (shouldUseMockData()) {
+    console.log(`Usando datos simulados para obtener baja masiva ID: ${id}`);
+    const baja = mockBajasMasivas.find(b => b.id === id);
+    if (!baja) return null;
+    
+    // Simular sierras asociadas
+    const sierras = mockSierras.slice(0, 2).map(sierra => ({
+      ...sierra,
+      activo: false
+    }));
+    
+    const { data } = await mockSupabaseResponse({
+      ...baja,
+      sierras
+    });
+    return data;
+  }
   try {
     // Primero obtenemos la baja masiva
     const { data: bajaMasiva, error: bajaError } = await supabase
@@ -124,6 +150,20 @@ export const getBajaMasivaById = async (id: number): Promise<BajaMasivaConRelaci
  * Crea una nueva baja masiva y actualiza las sierras relacionadas
  */
 export const createBajaMasiva = async (bajaMasiva: BajaMasivaInput, usuarioId: string): Promise<BajaMasiva> => {
+  // Usar datos simulados en modo desarrollo
+  if (shouldUseMockData()) {
+    console.log('Usando datos simulados para crear baja masiva');
+    const mockBaja = {
+      id: Math.floor(Math.random() * 1000) + 100,
+      usuario_id: usuarioId,
+      fecha_baja: bajaMasiva.fecha_baja,
+      observaciones: bajaMasiva.observaciones || null,
+      creado_en: new Date().toISOString(),
+      modificado_en: new Date().toISOString()
+    };
+    const { data } = await mockSupabaseResponse(mockBaja);
+    return data;
+  }
   try {
     // Iniciar una transacción para asegurar consistencia
     const { data: bajaData, error: bajaError } = await supabase
@@ -218,6 +258,13 @@ export const createBajaMasiva = async (bajaMasiva: BajaMasivaInput, usuarioId: s
  * Elimina una baja masiva y revierte los cambios en las sierras
  */
 export const deleteBajaMasiva = async (id: number): Promise<void> => {
+  // Usar datos simulados en modo desarrollo
+  if (shouldUseMockData()) {
+    console.log(`Usando datos simulados para eliminar baja masiva ID: ${id}`);
+    // Simular eliminación exitosa
+    await mockSupabaseResponse(null);
+    return;
+  }
   try {
     // Obtener los detalles de la baja masiva antes de eliminar
     const { data: detalles, error: detallesError } = await supabase

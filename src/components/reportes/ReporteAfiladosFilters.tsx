@@ -52,14 +52,23 @@ type FormValues = z.infer<typeof formSchema>;
 
 interface ReporteAfiladosFiltersProps {
   onFilter: (filters: ReporteAfiladosPorClienteFilters) => void;
+  isLoading?: boolean;
+  empresaIdFijo?: string | null;
 }
 
-export default function ReporteAfiladosFilters({ onFilter }: ReporteAfiladosFiltersProps) {
+export default function ReporteAfiladosFilters({ 
+  onFilter, 
+  isLoading: externalLoading = false,
+  empresaIdFijo = null 
+}: ReporteAfiladosFiltersProps) {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [tiposSierra, setTiposSierra] = useState<TipoSierra[]>([]);
   const [tiposAfilado, setTiposAfilado] = useState<TipoAfilado[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Combinar el estado de carga interno con el externo
+  const loading = isLoading || externalLoading;
 
   // Configurar el formulario
   const form = useForm<FormValues>({
@@ -83,6 +92,13 @@ export default function ReporteAfiladosFilters({ onFilter }: ReporteAfiladosFilt
         setIsLoading(true);
         const data = await getEmpresasActivas();
         setEmpresas(data);
+        
+        // Si hay una empresa fija (para usuarios con rol cliente), establecerla como valor por defecto
+        if (empresaIdFijo) {
+          form.setValue('empresa_id', empresaIdFijo);
+          // Cargar sucursales para esta empresa
+          loadSucursales(empresaIdFijo);
+        }
       } catch (error) {
         console.error('Error al cargar empresas:', error);
       } finally {
@@ -91,40 +107,43 @@ export default function ReporteAfiladosFilters({ onFilter }: ReporteAfiladosFilt
     };
 
     loadEmpresas();
-  }, []);
+  }, [empresaIdFijo]);
+  
+  // Función para cargar sucursales
+  const loadSucursales = async (empresaId: string) => {
+    if (!empresaId) {
+      setSucursales([]);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const { createClient } = await import('@/lib/supabase');
+      const supabase = createClient();
+      
+      const { data, error } = await supabase
+        .from('sucursales')
+        .select('*')
+        .eq('empresa_id', parseInt(empresaId))
+        .eq('activo', true)
+        .order('nombre');
+        
+      if (error) throw error;
+      
+      setSucursales(data || []);
+    } catch (error) {
+      console.error('Error al cargar sucursales:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Cargar sucursales cuando se selecciona una empresa
   useEffect(() => {
-    const loadSucursales = async () => {
-      const empresaId = form.watch('empresa_id');
-      if (!empresaId) {
-        setSucursales([]);
-        return;
-      }
-      
-      try {
-        setIsLoading(true);
-        const { createClient } = await import('@/lib/supabase');
-        const supabase = createClient();
-        
-        const { data, error } = await supabase
-          .from('sucursales')
-          .select('*')
-          .eq('empresa_id', parseInt(empresaId))
-          .eq('activo', true)
-          .order('nombre');
-          
-        if (error) throw error;
-        
-        setSucursales(data || []);
-      } catch (error) {
-        console.error('Error al cargar sucursales:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadSucursales();
+    const empresaId = form.watch('empresa_id');
+    if (empresaId) {
+      loadSucursales(empresaId);
+    }
   }, [form.watch('empresa_id')]);
   
   // Cargar tipos de sierra y tipos de afilado
@@ -192,8 +211,8 @@ export default function ReporteAfiladosFilters({ onFilter }: ReporteAfiladosFilt
           <FormItem>
             <FormLabel htmlFor="empresa_id">Empresa</FormLabel>
             <Select 
-              disabled={isLoading} 
-              onValueChange={(value) => form.setValue('empresa_id', value)} 
+              disabled={loading || !!empresaIdFijo} 
+              onValueChange={(value) => form.setValue('empresa_id', value)}
               value={form.watch('empresa_id')}
             >
               <SelectTrigger>
@@ -209,6 +228,11 @@ export default function ReporteAfiladosFilters({ onFilter }: ReporteAfiladosFilt
             </Select>
             {form.formState.errors.empresa_id && (
               <FormMessage>{form.formState.errors.empresa_id.message}</FormMessage>
+            )}
+            {empresaIdFijo && (
+              <FormDescription>
+                Solo puedes ver información de esta empresa.
+              </FormDescription>
             )}
           </FormItem>
           
@@ -379,7 +403,7 @@ export default function ReporteAfiladosFilters({ onFilter }: ReporteAfiladosFilt
         </div>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={loading}>
             <Search className="mr-2 h-4 w-4" />
             Generar Reporte
           </Button>

@@ -1,47 +1,17 @@
 'use server';
 
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
-// URL y clave pública desde las variables de entorno
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+// Credenciales hardcodeadas para evitar problemas con variables de entorno
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export async function createServerSupabaseClient() {
-  if (!supabaseUrl) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is missing');
-  }
-  
-  if (!supabaseAnonKey) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is missing');
-  }
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase credentials are not set in environment variables.');
+}
 
-  const cookieStore = cookies();
-  
-  return createServerClient(
-    supabaseUrl,
-    supabaseAnonKey,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          // Configurar cookies con mayor duración y mejor seguridad
-          cookieStore.set({ 
-            name, 
-            value, 
-            ...options,
-            // Asegurar que las cookies persistan más tiempo (30 días)
-            maxAge: options?.maxAge || 30 * 24 * 60 * 60,
-            // Cookies disponibles en todo el sitio
-            path: options?.path || '/',
-          });
-        },
-        remove(name: string, options: any) {
-          cookieStore.set({ name, value: '', ...options });
-        },
-      },
-    }
-  );
+// Función para crear un cliente de Supabase para uso en rutas API
+export function createClient() {
+  console.log('Creando cliente de Supabase para servidor con URL:', supabaseUrl);
+  return createSupabaseClient(supabaseUrl, supabaseKey);
 }

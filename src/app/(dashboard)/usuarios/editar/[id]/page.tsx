@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import UserForm from '@/components/usuarios/UserForm';
 import PasswordReset from '@/components/usuarios/PasswordReset';
+import AsignarEmpresasForm from '@/components/usuarios/AsignarEmpresasForm';
 import { createClient } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Definimos la interfaz para los parámetros de la página
 interface PageParams {
@@ -21,6 +23,7 @@ export default function EditarUsuarioPage({ params }: PageParams) {
   const { toast } = useToast();
   const { id } = params;
   const [userEmail, setUserEmail] = useState('');
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [loading, setLoading] = useState(false);
   const [userExists, setUserExists] = useState(false);
@@ -37,7 +40,7 @@ export default function EditarUsuarioPage({ params }: PageParams) {
         // Intentar consultar por ID sin convertir (podría ser UUID o número)
         const { data, error } = await supabase
           .from('usuarios')
-          .select('id, email')
+          .select('id, email, rol_id')
           .eq('id', id)
           .single();
         
@@ -50,6 +53,19 @@ export default function EditarUsuarioPage({ params }: PageParams) {
           console.log('Usuario encontrado:', data);
           setUserExists(true);
           setUserEmail(data.email || '');
+          
+          // Obtener el nombre del rol
+          if (data.rol_id) {
+            const { data: roleData } = await supabase
+              .from('roles')
+              .select('nombre')
+              .eq('id', data.rol_id)
+              .single();
+              
+            if (roleData) {
+              setUserRole(roleData.nombre.toLowerCase());
+            }
+          }
         } else {
           console.error('Usuario no encontrado con ID:', id);
           toast({
@@ -90,7 +106,7 @@ export default function EditarUsuarioPage({ params }: PageParams) {
   }
   
   return (
-    <ProtectedRoute>
+    <ProtectedRoute rolesPermitidos={['gerente']}>
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
@@ -108,10 +124,28 @@ export default function EditarUsuarioPage({ params }: PageParams) {
           
           {userExists && (
             <div className="mt-6">
-              <UserForm
-                userId={id}
-                isEditing={true}
-              />
+              <Tabs defaultValue="datos">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="datos">Datos del Usuario</TabsTrigger>
+                  {userRole === 'cliente' && (
+                    <TabsTrigger value="empresas">Empresas Asignadas</TabsTrigger>
+                  )}
+                </TabsList>
+                <TabsContent value="datos">
+                  <UserForm
+                    userId={id}
+                    isEditing={true}
+                  />
+                </TabsContent>
+                {userRole === 'cliente' && (
+                  <TabsContent value="empresas">
+                    <AsignarEmpresasForm
+                      usuarioId={id}
+                      usuarioEmail={userEmail}
+                    />
+                  </TabsContent>
+                )}
+              </Tabs>
             </div>
           )}
           
