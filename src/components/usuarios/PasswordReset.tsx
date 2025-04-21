@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 interface PasswordResetProps {
   userEmail: string;
@@ -23,8 +23,6 @@ export default function PasswordReset({ userEmail, onClose }: PasswordResetProps
       setLoading(true);
       setError(null);
       
-      // Crear cliente de Supabase
-      const supabase = createClient();
       
       // Enviar email de restablecimiento de contraseña
       const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {

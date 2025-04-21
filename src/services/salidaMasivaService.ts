@@ -1,20 +1,10 @@
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { SalidaMasiva, SalidaMasivaConRelaciones, SalidaMasivaInput } from '@/types/salidaMasiva';
-import { shouldUseMockData, mockSupabaseResponse, mockSalidasMasivas } from '@/lib/mock-data';
-
-const supabase = createClient();
 
 /**
  * Obtiene todas las salidas masivas con sus relaciones
  */
 export const getSalidasMasivas = async (): Promise<SalidaMasivaConRelaciones[]> => {
-  // Usar datos simulados en modo desarrollo
-  if (shouldUseMockData()) {
-    console.log('Usando datos simulados para obtener salidas masivas');
-    const { data } = await mockSupabaseResponse(mockSalidasMasivas);
-    return data || [];
-  }
-  
   try {
     const { data, error } = await supabase
       .from('salidas_masivas')
@@ -40,13 +30,6 @@ export const getSalidasMasivas = async (): Promise<SalidaMasivaConRelaciones[]> 
  * Obtiene una salida masiva por su ID con todos sus afilados relacionados
  */
 export const getSalidaMasivaById = async (id: number): Promise<SalidaMasivaConRelaciones | null> => {
-  // Usar datos simulados en modo desarrollo
-  if (shouldUseMockData()) {
-    console.log(`Usando datos simulados para obtener salida masiva ID: ${id}`);
-    const salida = mockSalidasMasivas.find(s => s.id === id);
-    const { data } = await mockSupabaseResponse(salida || null);
-    return data;
-  }
   try {
     // Primero obtenemos la salida masiva
     const { data: salidaMasiva, error: salidaError } = await supabase
@@ -97,20 +80,6 @@ export const getSalidaMasivaById = async (id: number): Promise<SalidaMasivaConRe
  * Crea una nueva salida masiva y actualiza los afilados relacionados
  */
 export const createSalidaMasiva = async (salidaMasiva: SalidaMasivaInput, usuarioId: string): Promise<SalidaMasiva> => {
-  // Usar datos simulados en modo desarrollo
-  if (shouldUseMockData()) {
-    console.log('Usando datos simulados para crear salida masiva');
-    const mockSalida = {
-      id: Math.floor(Math.random() * 1000) + 100,
-      usuario_id: usuarioId,
-      sucursal_id: salidaMasiva.sucursal_id,
-      fecha_salida: salidaMasiva.fecha_salida,
-      observaciones: salidaMasiva.observaciones || null,
-      creado_en: new Date().toISOString()
-    };
-    const { data } = await mockSupabaseResponse(mockSalida);
-    return data;
-  }
   try {
     // Iniciar una transacción para asegurar consistencia
     const { data: salidaData, error: salidaError } = await supabase
@@ -224,13 +193,6 @@ export const createSalidaMasiva = async (salidaMasiva: SalidaMasivaInput, usuari
  * Elimina una salida masiva y revierte los cambios en afilados
  */
 export const deleteSalidaMasiva = async (id: number): Promise<void> => {
-  // Usar datos simulados en modo desarrollo
-  if (shouldUseMockData()) {
-    console.log(`Usando datos simulados para eliminar salida masiva ID: ${id}`);
-    // Simular eliminación exitosa
-    await mockSupabaseResponse(null);
-    return;
-  }
   try {
     // Obtener los afilados relacionados antes de eliminar
     const { data: detalles, error: detallesError } = await supabase

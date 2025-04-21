@@ -14,6 +14,10 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Edit, Trash, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { supabase } from '@/lib/supabase-client';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Pagination } from '@/components/ui/pagination';
+
 interface Sucursal {
   id: number;
   nombre: string;
@@ -23,9 +27,6 @@ interface Sucursal {
   activo: boolean;
   empresa_id: number;
 }
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Pagination } from '@/components/ui/pagination';
-import { createClient } from '@/lib/supabase';
 
 interface SucursalesTableProps {
   empresaId: number;
@@ -34,7 +35,6 @@ interface SucursalesTableProps {
 }
 
 export default function SucursalesTable({ empresaId, onEdit, onNew }: SucursalesTableProps) {
-  const supabase = createClient();
   const { toast } = useToast();
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +72,7 @@ export default function SucursalesTable({ empresaId, onEdit, onNew }: Sucursales
       });
       setLoading(false);
     }
-  }, [empresaId, supabase, toast]);
+  }, [empresaId, toast]);
 
   useEffect(() => {
     fetchSucursales(currentPage);
@@ -106,7 +106,7 @@ export default function SucursalesTable({ empresaId, onEdit, onNew }: Sucursales
         variant: 'destructive'
       });
     }
-  }, [supabase, toast, currentPage, fetchSucursales]);
+  }, [toast, currentPage, fetchSucursales]);
 
   return (
     <Card>

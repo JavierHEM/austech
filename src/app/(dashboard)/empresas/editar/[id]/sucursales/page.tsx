@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SucursalesTable from '@/components/empresas/SucursalesTable';
 import SucursalForm from '@/components/empresas/SucursalForm';
-import { createClient } from '@/lib/supabase';
+import {supabase } from '@/lib/supabase-client';
 
 // Definir una interfaz para la empresa (ya que no se exporta de types/empresa)
 interface Empresa {
@@ -34,7 +34,6 @@ interface SucursalesPageProps {
 export default function SucursalesPage({ params }: SucursalesPageProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
   const empresaId = parseInt(params.id);
   
   const [empresa, setEmpresa] = useState<Empresa | null>(null);

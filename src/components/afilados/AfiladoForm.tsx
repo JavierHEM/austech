@@ -43,7 +43,7 @@ import {
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { 
   createAfilado, 
   updateAfilado, 
@@ -96,7 +96,6 @@ export default function AfiladoForm({
   isEditing = false,
   isCompletando = false
 }: AfiladoFormProps) {
-  const supabase = createClient();
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);

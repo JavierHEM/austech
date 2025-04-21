@@ -7,7 +7,7 @@ import Link from 'next/link';
 import SucursalForm from '@/components/sucursales/SucursalForm';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 interface EditarSucursalPageProps {
   params: {
@@ -18,7 +18,6 @@ interface EditarSucursalPageProps {
 export default function EditarSucursalPage({ params }: EditarSucursalPageProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
   const sucursalId = parseInt(params.id);
   const [empresaId, setEmpresaId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);

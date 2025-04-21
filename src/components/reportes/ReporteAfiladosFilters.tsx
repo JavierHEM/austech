@@ -118,8 +118,7 @@ export default function ReporteAfiladosFilters({
     
     try {
       setIsLoading(true);
-      const { createClient } = await import('@/lib/supabase');
-      const supabase = createClient();
+      const { supabase } = await import('@/lib/supabase-client');
       
       const { data, error } = await supabase
         .from('sucursales')
@@ -151,8 +150,7 @@ export default function ReporteAfiladosFilters({
     const loadCatalogos = async () => {
       try {
         setIsLoading(true);
-        const { createClient } = await import('@/lib/supabase');
-        const supabase = createClient();
+        const { supabase } = await import('@/lib/supabase-client');
         
         // Cargar tipos de sierra
         const { data: dataTiposSierra, error: errorTiposSierra } = await supabase

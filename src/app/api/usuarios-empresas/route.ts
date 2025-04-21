@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase-server';
+import { createServerClient } from '@/lib/supabase-server';
 
 // Obtener todas las relaciones usuario-empresa
 export async function GET(request: Request) {
   try {
-    const supabase = createClient();
+    const supabase = createServerClient();
     const { data, error } = await supabase
       .from('usuarios_empresas')
       .select(`
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createClient();
+    const supabase = createServerClient();
     
     // Verificar si la relación ya existe
     const { data: existingData, error: existingError } = await supabase
@@ -94,7 +94,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const supabase = createClient();
+    const supabase = createServerClient();
     const { error } = await supabase
       .from('usuarios_empresas')
       .delete()

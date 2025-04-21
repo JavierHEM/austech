@@ -53,7 +53,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { getAfilados, deleteAfilado, AfiladoFilters, PaginatedAfilados } from '@/services/afiladoService';
 import AfiladoFiltersComponent from '@/components/afilados/AfiladoFilters';
 
@@ -70,7 +70,7 @@ export default function AfiladosPage() {
   const [filters, setFilters] = useState<AfiladoFilters>({});
   const [sortField, setSortField] = useState<string>('fecha_afilado');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const supabase = createClient();
+
 
   // Cargar afilados
   const loadAfilados = async () => {

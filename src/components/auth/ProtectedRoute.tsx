@@ -2,43 +2,39 @@
 
 import { useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import Loading from '@/components/ui/Loading';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRoles?: string[];
+  roles?: string[];
+  redirectTo?: string;
 }
 
-export default function ProtectedRoute({ 
-  children, 
-  requiredRoles = [] 
+export default function ProtectedRoute({
+  children,
+  roles = [],
+  redirectTo = '/login'
 }: ProtectedRouteProps) {
-  const { user, session, isLoading, userRole } = useAuth();
+  const { session, role, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    // Solo redirigir si no está cargando para evitar redirecciones prematuras
-    if (!isLoading) {
-      // Si no hay sesión, redirigir al login
+    if (!loading) {
       if (!session) {
-        console.log('No hay sesión, redirigiendo a /login');
-        router.push('/login');
+        router.push(redirectTo);
         return;
       }
-      
-      // Si hay roles requeridos y el usuario no tiene el rol adecuado
-      if (requiredRoles.length > 0 && (!userRole || !requiredRoles.includes(userRole))) {
-        console.log(`Usuario sin rol requerido (${userRole}), redirigiendo a /dashboard`);
-        router.push('/dashboard');
+
+      if (roles.length > 0 && role && !roles.includes(role)) {
+        router.push('/acceso-denegado');
         return;
       }
     }
-  }, [isLoading, session, userRole, router, requiredRoles]);
+  }, [loading, session, role, roles, redirectTo, router]);
 
-  // Mostrar pantalla de carga mientras se verifica la autenticación
-  if (isLoading) {
-    return <Loading />;
+  if (loading) {
+    return <div>Cargando...</div>;
   }
 
   // Renderizar los children solo si hay sesión y el usuario tiene el rol requerido (o no hay rol requerido)

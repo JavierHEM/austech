@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { useRouter } from 'next/navigation';
 import { 
   Form, 
@@ -44,7 +44,6 @@ interface UserFormProps {
 }
 
 export default function UserForm({ userId, isEditing = false }: UserFormProps) {
-  const supabase = createClient();
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);

@@ -1,7 +1,5 @@
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Sierra, SierraConRelaciones, SierraFilters } from '@/types/sierra';
-
-const supabase = createClient();
 
 // Interfaz para la respuesta paginada
 export interface PaginatedResponse<T> {

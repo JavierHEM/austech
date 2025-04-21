@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import UserFilters from '@/components/usuarios/UserFilters';
 import ConfirmationModal from '@/components/ui/ConfirmationModal';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 // Definir interfaces para los tipos de datos
 interface Role {
@@ -40,7 +40,7 @@ interface UserFiltersType {
 
 export default function UsuariosPage() {
   // Usar solo los valores disponibles en el contexto
-  const { user } = useAuth();
+  const { session, role } = useAuth();
   
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,10 +56,6 @@ export default function UsuariosPage() {
     try {
       setIsLoading(true);
       setError(null);
-      
-      // Obtener cliente de Supabase
-      const supabase = createClient();
-      
       // Iniciar la consulta base
       let query = supabase
         .from('usuarios')
@@ -151,7 +147,6 @@ export default function UsuariosPage() {
       console.log("Nuevo estado:", !userToToggle.activo);
       
       // Obtener cliente de Supabase
-      const supabase = createClient();
       
       const { error, status } = await supabase
         .from('usuarios')
@@ -186,7 +181,7 @@ export default function UsuariosPage() {
   };
 
   return (
-    <ProtectedRoute rolesPermitidos={['gerente']}>
+    <ProtectedRoute roles={['gerente']}>
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">

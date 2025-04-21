@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Building, Map, FileText, ArrowUpRight, Scissors, Package, PackageX } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase-client';
+import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import SalidasBajasMasivasResumen from '@/components/dashboard/SalidasBajasMasivasResumen';
 
@@ -60,19 +60,19 @@ function StatCard({ title, value, description, icon, link, loading }: StatCardPr
 }
 
 export default function DashboardPage() {
-  const { user, session, isLoading, userRole } = useAuth();
+  const { session, role, loading: authLoading } = useAuth();
   
   // Debug información de autenticación
   useEffect(() => {
     console.log('Auth State:', {
-      user,
+      user: session?.user,
       session,
-      isLoading,
+      isLoading: authLoading,
       userMetadata: session?.user?.user_metadata,
-      userRole
+      role
     });
-  }, [user, session, isLoading, userRole]);
-  const supabase = createClient();
+  }, [session, authLoading, role]);
+  
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -83,13 +83,13 @@ export default function DashboardPage() {
   });
 
   // Obtener el rol del usuario desde el contexto de autenticación
-  console.log('Dashboard: Rol del usuario desde contexto:', { userRole });
+  console.log('Dashboard: Rol del usuario desde contexto:', { role });
 
   
   // Determinar los roles del usuario
-  const isGerente = userRole === 'gerente';
-  const isAdministrador = userRole === 'administrador';
-  const isCliente = userRole === 'cliente';
+  const isGerente = role === 'gerente';
+  const isAdministrador = role === 'administrador';
+  const isCliente = role === 'cliente';
 
   
 
@@ -146,7 +146,7 @@ export default function DashboardPage() {
       });
       setLoading(false);
     }
-  }, [supabase, toast]);
+  }, [toast]);
 
   useEffect(() => {
     fetchStats();
@@ -286,16 +286,16 @@ export default function DashboardPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center pb-2 border-b">
                 <div className="font-medium">Usuario actual</div>
-                <div className="text-sm">{user?.email || 'No identificado'}</div>
+                <div className="text-sm">{session?.user?.email || 'No identificado'}</div>
               </div>
               <div className="flex justify-between items-center pb-2 border-b">
                 <div className="font-medium">Rol</div>
-                <div className="text-sm capitalize">{userRole || 'Sin rol asignado'}</div>
+                <div className="text-sm capitalize">{role || 'Sin rol asignado'}</div>
               </div>
               <div className="flex justify-between items-center">
                 <div className="font-medium">Estado</div>
-                <div className={`text-sm px-2 py-1 rounded-full ${user ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'}`}>
-                  {user ? 'Activo' : 'No autenticado'}
+                <div className={`text-sm px-2 py-1 rounded-full ${session?.user ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'}`}>
+                  {session?.user ? 'Activo' : 'No autenticado'}
                 </div>
               </div>
             </div>

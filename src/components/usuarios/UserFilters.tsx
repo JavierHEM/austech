@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { 
@@ -26,9 +26,8 @@ interface UserFiltersProps {
 }
 
 export default function UserFilters({ onFilterChange }: UserFiltersProps) {
-  // Crear instancia del cliente de Supabase
-  const supabase = createClient();
-  
+
+
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<string>('all');
   const [activo, setActivo] = useState<string>('all');
@@ -56,7 +55,7 @@ export default function UserFilters({ onFilterChange }: UserFiltersProps) {
     };
 
     fetchRoles();
-  }, [supabase]);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

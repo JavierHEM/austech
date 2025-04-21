@@ -25,7 +25,7 @@ import { Toaster } from '@/components/ui/toaster';
 // El ThemeProvider ahora está en el archivo providers.tsx
 import { ModeToggle } from '@/components/mode-toggle';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 
 interface NavItem {
   label: string;
@@ -164,7 +164,7 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
-  const { signOut, user, session, isLoading, userRole } = useAuth();
+  const { logout, session, role, loading } = useAuth();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -172,29 +172,29 @@ export default function DashboardLayout({
   
   // Filtrar los elementos de navegación según el rol del usuario
   const filteredNavCategories = useMemo(() => {
-    if (!userRole) return [];
+    if (!role) return [];
     
     return navCategories.map(category => ({
       ...category,
       items: category.items.filter(item => 
         // Mostrar el elemento si no tiene requiredRoles o si el rol del usuario está en requiredRoles
-        !item.requiredRoles || item.requiredRoles.includes(userRole)
+        !item.requiredRoles || item.requiredRoles.includes(role)
       )
     })).filter(category => category.items.length > 0); // Eliminar categorías vacías
-  }, [userRole]);
+  }, [role]);
 
-  // Si está cargando, mostrar un indicador de carga
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
+  // Mostrar pantalla de carga mientras se verifica la autenticación
+  if (loading) {
+    return <div>Cargando...</div>;
   }
 
-  // Si no hay sesión o usuario, redirigir a login
-  if (!session || !user) {
-    return null;
+  // Si el usuario no tiene un rol válido y no está cargando, mostrar un mensaje de error
+  if (!role) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-red-500">No tienes un rol asignado. Por favor contacta al administrador.</p>
+      </div>
+    );
   }
 
   return (
@@ -212,7 +212,7 @@ export default function DashboardLayout({
             </div>
             <div className="ml-auto flex items-center space-x-4">
               <ModeToggle />
-              <Button variant="ghost" size="icon" onClick={signOut}>
+              <Button variant="ghost" size="icon" onClick={logout}>
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>

@@ -6,7 +6,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import UserForm from '@/components/usuarios/UserForm';
 import PasswordReset from '@/components/usuarios/PasswordReset';
 import AsignarEmpresasForm from '@/components/usuarios/AsignarEmpresasForm';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -33,7 +33,6 @@ export default function EditarUsuarioPage({ params }: PageParams) {
     const checkUserExists = async () => {
       try {
         setLoading(true);
-        const supabase = createClient();
         
         console.log('Verificando usuario con ID:', id);
         
@@ -106,7 +105,7 @@ export default function EditarUsuarioPage({ params }: PageParams) {
   }
   
   return (
-    <ProtectedRoute rolesPermitidos={['gerente']}>
+    <ProtectedRoute roles={['gerente']}>
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">

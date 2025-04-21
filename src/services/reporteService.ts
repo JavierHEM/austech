@@ -1,9 +1,7 @@
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Empresa } from '@/types/empresa';
 import { AfiladoConRelaciones } from '@/types/afilado';
 import { SierraConRelaciones } from '@/types/sierra';
-
-const supabase = createClient();
 
 export interface ReporteAfiladosPorClienteFilters {
   empresa_id: number;

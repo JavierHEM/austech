@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Search, X } from 'lucide-react';
 import { SierraFilters as SierraFiltersType } from '@/types/sierra';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 interface SierraFiltersProps {
   onFilterChange: (filters: SierraFiltersType) => void;
@@ -30,7 +30,6 @@ export default function SierraFilters({ onFilterChange }: SierraFiltersProps) {
     const fetchSucursales = async () => {
       setLoadingSucursales(true);
       try {
-        const supabase = createClient();
         const { data, error } = await supabase
           .from('sucursales')
           .select('id, nombre, empresa_id, empresas(razon_social)')
@@ -78,7 +77,6 @@ export default function SierraFilters({ onFilterChange }: SierraFiltersProps) {
     const fetchTiposSierra = async () => {
       setLoadingTiposSierra(true);
       try {
-        const supabase = createClient();
         const { data, error } = await supabase
           .from('tipos_sierra')
           .select('*')
@@ -103,7 +101,6 @@ export default function SierraFilters({ onFilterChange }: SierraFiltersProps) {
     const fetchEstadosSierra = async () => {
       setLoadingEstadosSierra(true);
       try {
-        const supabase = createClient();
         const { data, error } = await supabase
           .from('estados_sierra')
           .select('*')

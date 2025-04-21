@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Search, X } from 'lucide-react';
 import { SucursalFilters as SucursalFiltersType } from '@/types/sucursal';
 import { Empresa } from '@/types/empresa';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 interface SucursalFiltersProps {
   onFilterChange: (filters: SucursalFiltersType) => void;
@@ -23,7 +23,6 @@ export default function SucursalFilters({ onFilterChange }: SucursalFiltersProps
     const fetchEmpresas = async () => {
       setLoadingEmpresas(true);
       try {
-        const supabase = createClient();
         const { data, error } = await supabase
           .from('empresas')
           .select('*')

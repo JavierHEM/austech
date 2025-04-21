@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Sucursal, SucursalConEmpresa, SucursalFilters } from '@/types/sucursal';
 
 // Función para obtener todas las sucursales con filtros
@@ -7,7 +7,6 @@ export async function getSucursales(
   pageSize: number = 10,
   filters: SucursalFilters = { search: '', empresa_id: null, activo: null }
 ): Promise<{ data: SucursalConEmpresa[], count: number }> {
-  const supabase = createClient();
   const startRow = (page - 1) * pageSize;
   const endRow = startRow + pageSize - 1;
 
@@ -55,8 +54,6 @@ export async function getSucursales(
 
 // Función para obtener una sucursal por ID
 export async function getSucursalById(id: number): Promise<SucursalConEmpresa | null> {
-  const supabase = createClient();
-  
   const { data, error } = await supabase
     .from('sucursales')
     .select('*, empresas(*)')
@@ -80,8 +77,6 @@ export async function getSucursalById(id: number): Promise<SucursalConEmpresa | 
 
 // Función para crear una nueva sucursal
 export async function createSucursal(sucursal: Omit<Sucursal, 'id' | 'creado_en' | 'modificado_en'>): Promise<Sucursal> {
-  const supabase = createClient();
-  
   const now = new Date().toISOString();
   const newSucursal = {
     ...sucursal,
@@ -105,8 +100,6 @@ export async function createSucursal(sucursal: Omit<Sucursal, 'id' | 'creado_en'
 
 // Función para actualizar una sucursal existente
 export async function updateSucursal(id: number, sucursal: Partial<Omit<Sucursal, 'id' | 'creado_en' | 'modificado_en'>>): Promise<Sucursal> {
-  const supabase = createClient();
-  
   const updateData = {
     ...sucursal,
     modificado_en: new Date().toISOString()
@@ -129,8 +122,6 @@ export async function updateSucursal(id: number, sucursal: Partial<Omit<Sucursal
 
 // Función para eliminar una sucursal (desactivar)
 export async function deleteSucursal(id: number): Promise<void> {
-  const supabase = createClient();
-  
   const { error } = await supabase
     .from('sucursales')
     .update({ 
@@ -147,8 +138,6 @@ export async function deleteSucursal(id: number): Promise<void> {
 
 // Función para obtener todas las sucursales de una empresa específica
 export async function getSucursalesByEmpresa(empresaId: number): Promise<Sucursal[]> {
-  const supabase = createClient();
-  
   const { data, error } = await supabase
     .from('sucursales')
     .select('*')

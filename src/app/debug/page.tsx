@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 export default function DebugPage() {
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,6 @@ export default function DebugPage() {
         }
 
         // Intentar crear un cliente de Supabase y hacer una solicitud
-        const supabase = createClient();
         const start = Date.now();
         const { data, error } = await supabase.from('usuarios').select('count').limit(1);
         const end = Date.now();

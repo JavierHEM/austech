@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -37,8 +37,6 @@ export default function AsignarEmpresasForm({ usuarioId, usuarioEmail }: Asignar
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Obtener todas las empresas
-        const supabase = createClient();
         const { data: empresasData, error: empresasError } = await supabase
           .from('empresas')
           .select('id, nombre')
@@ -89,8 +87,6 @@ export default function AsignarEmpresasForm({ usuarioId, usuarioEmail }: Asignar
   const handleGuardar = async () => {
     setIsSaving(true);
     try {
-      const supabase = createClient();
-      
       // Empresas a eliminar (estaban asignadas pero ya no están en la selección)
       const empresasAEliminar = relaciones.filter(
         r => !empresasAsignadas.includes(r.empresa_id)

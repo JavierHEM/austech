@@ -36,7 +36,7 @@ import { getSierraByCodigo } from '@/services/sierraService';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 
 // Esquema de validación para el formulario
 const formSchema = z.object({
@@ -47,7 +47,7 @@ const formSchema = z.object({
 });
 
 export default function BajaMasivaForm() {
-  const { user } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -86,7 +86,7 @@ export default function BajaMasivaForm() {
       };
 
       // Crear la baja masiva
-      await createBajaMasiva(bajaMasivaData, user?.id || '');
+      await createBajaMasiva(bajaMasivaData, session?.user?.id || '');
 
       toast({
         title: 'Éxito',

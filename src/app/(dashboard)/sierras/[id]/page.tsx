@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { getSierraById } from '@/services/sierraService';
 import { SierraConRelaciones } from '@/types/sierra';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 interface SierraPageProps {
   params: {
@@ -41,7 +41,6 @@ export default function SierraPage({ params }: SierraPageProps) {
   const [sierra, setSierra] = useState<SierraConRelaciones | null>(null);
   const [loading, setLoading] = useState(true);
   const sierraId = params.id ? parseInt(params.id) : 0;
-  const supabase = createClient();
 
   useEffect(() => {
     const fetchSierra = async () => {

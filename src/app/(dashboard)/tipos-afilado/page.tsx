@@ -38,7 +38,7 @@ import {
   AlertDialogTitle, 
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { TipoAfilado } from '@/types/afilado';
 import { getTiposAfilado } from '@/services/tipoAfiladoService';
 
@@ -48,7 +48,6 @@ export default function TiposAfiladoPage() {
   const [tiposAfilado, setTiposAfilado] = useState<TipoAfilado[]>([]);
   const [tipoToDelete, setTipoToDelete] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const supabase = createClient();
 
   // Cargar tipos de afilado
   const loadTiposAfilado = async () => {

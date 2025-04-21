@@ -23,12 +23,12 @@ import { AfiladoConRelaciones } from '@/types/afilado';
 import BarcodeInputComponent from '@/components/scanner/BarcodeInputComponent';
 import { getSierraByCodigo } from '@/services/sierraService';
 import { getAfiladosBySierra } from '@/services/afiladoService';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 
 
 
 export default function SalidaMasivaForm() {
-  const { user } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -64,7 +64,7 @@ export default function SalidaMasivaForm() {
 
       // Crear la salida masiva - esto actualizará el estado de las sierras a "Disponible" (estado_id = 1)
       // y registrará la fecha de salida en los afilados
-      await createSalidaMasiva(salidaMasivaData, user?.id || '');
+      await createSalidaMasiva(salidaMasivaData, session?.user?.id || '');
 
       toast({
         title: 'Éxito',

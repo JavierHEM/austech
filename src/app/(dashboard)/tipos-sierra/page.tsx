@@ -41,7 +41,7 @@ import {
   AlertDialogTitle, 
   AlertDialogTrigger 
 } from '@/components/ui/alert-dialog';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { TipoSierra } from '@/types/sierra';
 
 export default function TiposSierraPage() {
@@ -50,7 +50,6 @@ export default function TiposSierraPage() {
   const [tiposSierra, setTiposSierra] = useState<TipoSierra[]>([]);
   const [tipoToDelete, setTipoToDelete] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const supabase = createClient();
 
   // Cargar tipos de sierra
   const loadTiposSierra = async () => {

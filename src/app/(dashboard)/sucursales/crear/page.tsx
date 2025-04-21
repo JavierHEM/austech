@@ -8,7 +8,7 @@ import SucursalForm from '@/components/sucursales/SucursalForm';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 // Interfaz para la empresa
 interface Empresa {
@@ -19,7 +19,6 @@ interface Empresa {
 export default function CrearSucursalPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [selectedEmpresa, setSelectedEmpresa] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);

@@ -1,7 +1,5 @@
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { TipoAfilado } from '@/types/afilado';
-
-const supabase = createClient();
 
 /**
  * Obtiene todos los tipos de afilado

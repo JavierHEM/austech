@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { getTipoAfiladoById, createTipoAfilado, updateTipoAfilado } from '@/services/tipoAfiladoService';
 
 interface TipoAfiladoFormProps {
@@ -36,7 +36,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export default function TipoAfiladoForm({ tipoId, isEditing = false }: TipoAfiladoFormProps) {
-  const supabase = createClient();
+
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);

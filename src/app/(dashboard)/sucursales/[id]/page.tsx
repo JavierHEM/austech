@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 
 // Definir tipos localmente ya que parecen faltar en los archivos importados
 interface Empresa {
@@ -52,7 +52,6 @@ interface SucursalDetailPageProps {
 export default function SucursalDetailPage({ params }: SucursalDetailPageProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const supabase = createClient();
   const sucursalId = parseInt(params.id);
   
   const [sucursal, setSucursal] = useState<SucursalConEmpresa | null>(null);

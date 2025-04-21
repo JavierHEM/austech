@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Empresa } from '@/types/empresa';
 import { SucursalFormValues } from '@/types/sucursal';
 
@@ -29,7 +29,7 @@ interface SucursalFormProps {
 }
 
 export default function SucursalForm({ sucursalId, isEditing = false, empresaId }: SucursalFormProps) {
-  const supabase = createClient();
+
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);

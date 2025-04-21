@@ -1,8 +1,6 @@
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Afilado, AfiladoConRelaciones, AfiladoFilters } from '@/types/afilado';
 import { SierraConRelaciones } from '@/types/sierra';
-
-const supabase = createClient();
 
 /**
  * Interfaz para la respuesta paginada de afilados

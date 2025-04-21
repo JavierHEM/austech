@@ -20,13 +20,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReporteAfiladosFilters from '@/components/reportes/ReporteAfiladosFilters';
 import { getReporteAfiladosPorCliente, ReporteAfiladosPorClienteFilters, ReporteAfiladoItem } from '@/services/reporteService';
 import ClienteRestriction from '@/components/auth/ClienteRestriction';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function ReporteAfiladosPorClientePage() {
   const searchParams = useSearchParams();
   const empresaIdParam = searchParams ? searchParams.get('empresa_id') : null;
   
-  const { userRole } = useAuth();
+  const { session, role, loading: authLoading } = useAuth();
   const [reporteItems, setReporteItems] = useState<ReporteAfiladoItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export default function ReporteAfiladosPorClientePage() {
   
   // Aplicar filtros iniciales si se proporciona un ID de empresa en la URL (para usuarios con rol cliente)
   useEffect(() => {
-    if (empresaIdParam && userRole === 'cliente') {
+    if (empresaIdParam && role === 'cliente') {
       const initialFilters: ReporteAfiladosPorClienteFilters = {
         empresa_id: Number(empresaIdParam),
         fecha_desde: null,
@@ -49,7 +49,7 @@ export default function ReporteAfiladosPorClientePage() {
       
       handleFilter(initialFilters);
     }
-  }, [empresaIdParam, userRole]);
+  }, [empresaIdParam, ]);
 
   // Manejar la aplicación de filtros
   const handleFilter = async (filters: ReporteAfiladosPorClienteFilters) => {
@@ -138,8 +138,11 @@ export default function ReporteAfiladosPorClientePage() {
     setShowFilters(!showFilters);
   };
 
+  // Convertimos empresaIdParam a número o undefined para satisfacer el tipo esperado por ClienteRestriction
+  const empresaIdNumerico = empresaIdParam ? Number(empresaIdParam) : undefined;
+  
   return (
-    <ClienteRestriction empresaId={empresaIdParam}>
+    <ClienteRestriction empresaId={empresaIdNumerico}>
       <div className="container mx-auto py-6 space-y-6">
         <Card>
           <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
@@ -183,7 +186,7 @@ export default function ReporteAfiladosPorClientePage() {
               <ReporteAfiladosFilters 
                 onFilter={handleFilter} 
                 isLoading={isLoading} 
-                empresaIdFijo={userRole === 'cliente' ? empresaIdParam : undefined}
+                empresaIdFijo={role === 'cliente' ? empresaIdParam : undefined}
               />
             )}
 

@@ -1,7 +1,5 @@
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-client';
 import { Empresa } from '@/types/empresa';
-
-const supabase = createClient();
 
 // Interfaz para los filtros de empresa
 export interface EmpresaFilters {
