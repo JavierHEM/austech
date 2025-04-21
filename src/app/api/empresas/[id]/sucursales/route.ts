@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SucursalFormValues } from '@/types/empresa';
-import { db } from '@/lib/db';
+import { createServerClient } from '@/lib/supabase-server';
 
 // GET /api/empresas/[id]/sucursales - Obtener todas las sucursales de una empresa
 export async function GET(
@@ -17,8 +17,11 @@ export async function GET(
       );
     }
     
+    // Crear cliente de Supabase para el servidor
+    const supabase = createServerClient();
+    
     // Verificar que la empresa exista
-    const empresaExistente = await db.client
+    const empresaExistente = await supabase
       .from('empresas')
       .select('id')
       .eq('id', empresaId)
@@ -40,7 +43,7 @@ export async function GET(
     const offset = (page - 1) * limit;
     
     // Construir consulta
-    let query = db.client
+    let query = supabase
       .from('sucursales')
       .select('*', { count: 'exact' })
       .eq('empresa_id', empresaId);
@@ -97,8 +100,11 @@ export async function POST(
       );
     }
     
+    // Crear cliente de Supabase para el servidor
+    const supabase = createServerClient();
+    
     // Verificar que la empresa exista
-    const empresaExistente = await db.client
+    const empresaExistente = await supabase
       .from('empresas')
       .select('id')
       .eq('id', empresaId)
@@ -123,7 +129,7 @@ export async function POST(
     
     // Insertar la nueva sucursal
     const now = new Date().toISOString();
-    const { data, error } = await db.client
+    const { data, error } = await supabase
       .from('sucursales')
       .insert({
         empresa_id: empresaId,

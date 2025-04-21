@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SucursalFormValues } from '@/types/empresa';
-import { db } from '@/lib/db';
+import { createServerClient } from '@/lib/supabase-server';
 
 // GET /api/sucursales - Obtener todas las sucursales
 export async function GET(req: NextRequest) {
@@ -14,8 +14,11 @@ export async function GET(req: NextRequest) {
     
     const offset = (page - 1) * limit;
     
+    // Crear cliente de Supabase para el servidor
+    const supabase = createServerClient();
+    
     // Construir consulta básica
-    let query = db.client
+    let query = supabase
       .from('sucursales')
       .select('*, empresas(id, razon_social, rut)', { count: 'exact' });
     
@@ -42,7 +45,7 @@ export async function GET(req: NextRequest) {
     }
     
     // Transformar los resultados para incluir la información de la empresa
-    const sucursales = data?.map(row => {
+    const sucursales = data?.map((row: any) => {
       const empresaData = row.empresas;
       delete row.empresas;
       
@@ -81,15 +84,18 @@ export async function POST(req: NextRequest) {
     const body: SucursalFormValues = await req.json();
     
     // Validar los datos de entrada
-    if (!body.empresa_id || !body.nombre || !body.direccion || !body.telefono || !body.email) {
+    if (!body.nombre || !body.direccion || !body.telefono || !body.email || !body.empresa_id) {
       return NextResponse.json(
         { error: 'Todos los campos son requeridos' },
         { status: 400 }
       );
     }
     
+    // Crear cliente de Supabase para el servidor
+    const supabase = createServerClient();
+    
     // Verificar que la empresa exista
-    const { data: empresaExistente, error: errorEmpresa } = await db.client
+    const { data: empresaExistente, error: errorEmpresa } = await supabase
       .from('empresas')
       .select('id')
       .eq('id', body.empresa_id)
@@ -104,7 +110,7 @@ export async function POST(req: NextRequest) {
     
     // Insertar la nueva sucursal
     const now = new Date().toISOString();
-    const { data, error } = await db.client
+    const { data, error } = await supabase
       .from('sucursales')
       .insert({
         empresa_id: body.empresa_id,

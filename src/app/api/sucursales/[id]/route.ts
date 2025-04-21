@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SucursalFormValues } from '@/types/empresa';
-import { db } from '@/lib/db';
+import { createServerClient } from '@/lib/supabase-server';
 
 // GET /api/sucursales/[id] - Obtener una sucursal específica
 export async function GET(
@@ -20,16 +20,19 @@ export async function GET(
     const url = new URL(req.url);
     const includeEmpresa = url.searchParams.get('include') === 'empresa';
     
+    // Crear cliente de Supabase para el servidor
+    const supabase = createServerClient();
+    
     let query;
     
     if (includeEmpresa) {
-      query = db.client
+      query = supabase
         .from('sucursales')
         .select('*, empresas(*)')
         .eq('id', id)
         .single();
     } else {
-      query = db.client
+      query = supabase
         .from('sucursales')
         .select('*')
         .eq('id', id)
@@ -89,8 +92,11 @@ export async function PUT(
       );
     }
     
+    // Crear cliente de Supabase para el servidor
+    const supabase = createServerClient();
+    
     // Verificar que la sucursal exista
-    const { data: sucursalExistente, error: errorSucursal } = await db.client
+    const { data: sucursalExistente, error: errorSucursal } = await supabase
       .from('sucursales')
       .select('id')
       .eq('id', id)
@@ -115,7 +121,7 @@ export async function PUT(
     
     // Actualizar la sucursal
     const now = new Date().toISOString();
-    const { data, error } = await db.client
+    const { data, error } = await supabase
       .from('sucursales')
       .update({
         nombre: body.nombre,
@@ -159,8 +165,11 @@ export async function DELETE(
       );
     }
     
+    // Crear cliente de Supabase para el servidor
+    const supabase = createServerClient();
+    
     // Verificar que la sucursal exista
-    const { data: sucursalExistente, error: errorSucursal } = await db.client
+    const { data: sucursalExistente, error: errorSucursal } = await supabase
       .from('sucursales')
       .select('id')
       .eq('id', id)
@@ -174,7 +183,7 @@ export async function DELETE(
     }
     
     // Eliminar la sucursal
-    const { error } = await db.client
+    const { error } = await supabase
       .from('sucursales')
       .delete()
       .eq('id', id);

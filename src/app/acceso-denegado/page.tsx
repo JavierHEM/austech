@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import SVGWrapper from '@/components/SVGWrapper';
 
 export default function AccesoDenegadoPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { session } = useAuth();
   
   // Determinar a dónde redirigir según el rol
   const handleRedirect = () => {
