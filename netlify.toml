@@ -7,3 +7,20 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Configuración de redirecciones para SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Redirecciones específicas para rutas de autenticación
+[[redirects]]
+  from = "/login"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/dashboard/*"
+  to = "/index.html"
+  status = 200
