@@ -90,6 +90,23 @@ export default function ReporteAfiladosPorClientePage() {
     const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Afilados por Cliente');
+    
+    // Configurar formato de celdas para las fechas (dd/mm/aaaa)
+    const dateColumns = ['G', 'H']; // Columnas de fecha (G: Fecha Afilado, H: Fecha Registro)
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    
+    // Iterar sobre las columnas de fecha y aplicar formato
+    dateColumns.forEach(col => {
+      for (let row = 1; row <= range.e.r; row++) { // Empezar desde 1 para omitir la cabecera
+        const cellRef = `${col}${row + 1}`; // +1 porque las filas en XLSX empiezan en 1, pero el rango en 0
+        if (worksheet[cellRef]) {
+          // Asegurarse de que la celda se trate como texto con formato de fecha
+          worksheet[cellRef].z = 'dd/mm/yyyy';
+          // Marcar como texto para evitar conversiones automáticas
+          worksheet[cellRef].t = 's';
+        }
+      }
+    });
 
     // Ajustar anchos de columna
     const columnWidths = [

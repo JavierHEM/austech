@@ -1,5 +1,5 @@
 // src/hooks/use-auth.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
@@ -14,19 +14,28 @@ type RoleData = {
   modificado_en: string | null;
 };
 
+// Caché para almacenar roles de usuarios y evitar peticiones repetidas
+const userRoleCache = new Map<string, UserRole>();
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const router = useRouter();
+  
+  // Referencia para controlar si el componente está montado
+  const isMounted = useRef(true);
 
   const getUserRole = async (userId: string): Promise<UserRole> => {
     try {
-      console.log('Obteniendo rol para el usuario ID:', userId);
+      // Verificar primero si el rol ya está en caché
+      if (userRoleCache.has(userId)) {
+        // console.log('Usando rol en caché para usuario ID:', userId);
+        return userRoleCache.get(userId) || null;
+      }
       
-      // Verificar si el usuario existe en la tabla usuarios
-      console.log('Consultando tabla usuarios con ID:', userId);
+      // console.log('Obteniendo rol para el usuario ID:', userId);
       
       // Primero intentamos obtener el usuario con su rol_id
       const { data: userData, error: userError } = await supabase
@@ -34,9 +43,6 @@ export function useAuth() {
         .select('rol_id, email, activo')
         .eq('id', userId)
         .single();
-      
-      // Imprimir la respuesta completa para depuración
-      console.log('Respuesta de consulta a usuarios:', { userData, userError });
 
       if (userError) {
         console.error('Error al obtener el usuario:', userError);
@@ -68,10 +74,9 @@ export function useAuth() {
         return null;
       }
 
-      console.log('ID de rol del usuario:', userData.rol_id, 'Email:', userData.email);
+      // console.log('ID de rol del usuario:', userData.rol_id, 'Email:', userData.email);
       
       // Ahora obtenemos el nombre del rol desde la tabla roles
-      console.log('Consultando tabla roles con ID:', userData.rol_id);
       
       const { data: roleData, error: roleError } = await supabase
         .from('roles')
@@ -79,8 +84,7 @@ export function useAuth() {
         .eq('id', userData.rol_id)
         .single();
       
-      // Imprimir la respuesta completa para depuración
-      console.log('Respuesta de consulta a roles:', { roleData, roleError });
+      // No imprimir respuestas completas para reducir ruido en la consola
 
       if (roleError) {
         console.error('Error al obtener el rol:', roleError);
@@ -94,7 +98,7 @@ export function useAuth() {
 
       // Convertir el nombre del rol a minúsculas para hacer la comparación insensible a mayúsculas
       const roleName = roleData.nombre.toLowerCase();
-      console.log('Rol obtenido:', roleName, 'para usuario:', userData.email);
+      // console.log('Rol obtenido:', roleName, 'para usuario:', userData.email);
 
       // Convertir el string a uno de los tipos permitidos en UserRole
       let typedRole: UserRole = null;
@@ -108,6 +112,11 @@ export function useAuth() {
         typedRole = 'cliente';
       }
 
+      // Guardar el rol en caché para futuras consultas
+      if (typedRole) {
+        userRoleCache.set(userId, typedRole);
+      }
+      
       return typedRole;
     } catch (error) {
       console.error('Error al obtener el rol:', error);
@@ -121,82 +130,103 @@ export function useAuth() {
     
     if (userRole === 'gerente' || userRole === 'administrador') {
       setIsRedirecting(true);
-      console.log('Redirigiendo a /dashboard basado en rol:', userRole);
       router.push('/dashboard');
     } else if (userRole === 'cliente') {
       setIsRedirecting(true);
-      console.log('Redirigiendo a /cliente basado en rol:', userRole);
       router.push('/cliente');
     }
   }, [router, isRedirecting]);
 
   useEffect(() => {
+    // Marcar el componente como montado
+    isMounted.current = true;
+    
+    // Función para inicializar la sesión (se ejecuta solo una vez)
     const initSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('Error al obtener la sesión:', error);
-          setLoading(false);
+          if (isMounted.current) setLoading(false);
           return;
         }
 
-        setSession(session);
+        if (isMounted.current) setSession(session);
 
         if (session?.user) {
           const userRole = await getUserRole(session.user.id);
-          console.log('Rol obtenido para el usuario:', userRole);
-          setRole(userRole);
+          // console.log('Rol obtenido para el usuario:', userRole);
+          if (isMounted.current) setRole(userRole);
           
           // No redirigir automáticamente aquí, solo al hacer login explícito
         }
       } catch (error) {
         console.error('Error al inicializar sesión:', error);
       } finally {
-        setLoading(false);
+        if (isMounted.current) setLoading(false);
       }
     };
 
     initSession();
 
+    // Suscribirse a cambios de autenticación (una sola vez)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth event:', event, session?.user?.id);
+      // console.log('Auth event:', event, session?.user?.id);
+      if (!isMounted.current) return;
+      
       setSession(session);
       
       if (session?.user) {
-        const userRole = await getUserRole(session.user.id);
-        console.log('Rol actualizado:', userRole);
-        setRole(userRole);
+        // Usar el rol en caché si está disponible, o obtenerlo si no
+        let userRole: UserRole = null;
+        
+        if (userRoleCache.has(session.user.id)) {
+          userRole = userRoleCache.get(session.user.id) || null;
+          // console.log('Usando rol en caché:', userRole);
+        } else {
+          userRole = await getUserRole(session.user.id);
+          // console.log('Rol actualizado:', userRole);
+        }
+        
+        if (isMounted.current) setRole(userRole);
         
         // Solo redirigir en eventos específicos (SIGNED_IN)
         if (event === 'SIGNED_IN') {
           handleRoleBasedRedirection(userRole);
         }
       } else {
-        setRole(null);
+        if (isMounted.current) setRole(null);
         if (event === 'SIGNED_OUT') {
           router.push('/login');
         }
       }
     });
 
+    // Limpiar al desmontar
     return () => {
+      isMounted.current = false;
       subscription.unsubscribe();
     };
   }, [router, handleRoleBasedRedirection]);
 
   const login = async (email: string, password: string) => {
     try {
-      console.log('Intentando login con:', email);
       setIsRedirecting(false); // Resetear estado de redirección
       
+      // Primero intentamos obtener la sesión actual y cerrarla si existe
+      const { data: currentSession } = await supabase.auth.getSession();
+      if (currentSession?.session) {
+        await supabase.auth.signOut();
+      }
+      
+      // Luego intentamos iniciar sesión con las credenciales proporcionadas
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
-        console.error('Error de autenticación:', error);
         throw error;
       }
       
@@ -211,7 +241,6 @@ export function useAuth() {
       
       return data;
     } catch (error: any) {
-      console.error('Error en login:', error);
       throw error;
     }
   };

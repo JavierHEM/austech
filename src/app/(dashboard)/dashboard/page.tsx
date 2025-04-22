@@ -62,17 +62,6 @@ function StatCard({ title, value, description, icon, link, loading }: StatCardPr
 export default function DashboardPage() {
   const { session, role, loading: authLoading } = useAuth();
   
-  // Debug información de autenticación
-  useEffect(() => {
-    console.log('Auth State:', {
-      user: session?.user,
-      session,
-      isLoading: authLoading,
-      userMetadata: session?.user?.user_metadata,
-      role
-    });
-  }, [session, authLoading, role]);
-  
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -81,9 +70,6 @@ export default function DashboardPage() {
     sierras: 0,
     afilados: 0
   });
-
-  // Obtener el rol del usuario desde el contexto de autenticación
-  console.log('Dashboard: Rol del usuario desde contexto:', { role });
 
   
   // Determinar los roles del usuario
@@ -138,7 +124,7 @@ export default function DashboardPage() {
       
       setLoading(false);
     } catch (error) {
-      console.error('Error al cargar estadísticas:', error);
+      // console.error('Error al cargar estadísticas:', error);
       toast({
         title: 'Error',
         description: 'No se pudieron cargar las estadísticas del dashboard.',

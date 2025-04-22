@@ -27,14 +27,23 @@ export default function LoginForm() {
     setLoading(true);
     
     try {
-      console.log('Intentando iniciar sesión con:', email); // Debug log
       await login(email, password);
-      console.log('Login exitoso'); // Debug log
+      // Login exitoso - no necesitamos log aquí ya que la redirección será manejada por el hook
     } catch (error: any) {
-      console.error('Error detallado de login:', error); // Debug log detallado
+      // Formatear el mensaje de error para que sea más amigable
+      let errorMessage = 'No se pudo iniciar sesión. Verifica tus credenciales.';
+      
+      if (error.message) {
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = 'Credenciales inválidas. Verifica tu email y contraseña.';
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = 'Tu email no ha sido confirmado. Por favor revisa tu bandeja de entrada.';
+        }
+      }
+      
       toast({
         title: 'Error de autenticación',
-        description: error.message || 'No se pudo iniciar sesión. Verifica tus credenciales.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

@@ -176,8 +176,8 @@ export default function DashboardLayout({
     
     // Convertir el rol del usuario a minúsculas para comparación insensible a mayúsculas
     const userRoleLower = role.toLowerCase();
-    console.log('Layout - User role (lowercase):', userRoleLower);
-    
+
+
     return navCategories.map(category => ({
       ...category,
       items: category.items.filter(item => 
@@ -191,9 +191,6 @@ export default function DashboardLayout({
   if (loading) {
     return <div>Cargando...</div>;
   }
-
-  // Agregamos información de depuración
-  console.log('Layout - Current role:', role);
   
   // Si el usuario no tiene un rol válido y no está cargando, mostrar un mensaje de error
   if (!role) {
@@ -215,7 +212,13 @@ export default function DashboardLayout({
               <Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden">
                 <Menu className="h-5 w-5" />
               </Button>
-              <div className="ml-2 md:ml-0 text-xl font-bold">Sistema de Gestión</div>
+              <Link href="/dashboard" className="flex items-center ml-2 md:ml-0">
+                <img 
+                  src="/logo-austech.png" 
+                  alt="Austech Logo" 
+                  className="h-8 w-auto object-contain"
+                />
+              </Link>
             </div>
             <div className="ml-auto flex items-center space-x-4">
               <div className="mr-4 text-sm">
@@ -233,25 +236,25 @@ export default function DashboardLayout({
         {/* Contenedor principal */}
         <div className="flex flex-1 overflow-hidden">
           {/* Barra lateral - Versión escritorio */}
-          <aside className="w-0 md:w-auto bg-background border-r hidden md:flex flex-col h-[calc(100vh-4rem)] overflow-y-auto">
-            {/* Reducir espaciado en la navegación */}
-            <nav className="py-0.5 px-1">
-              <div className="space-y-1">
+          <aside className="w-0 md:w-64 bg-background border-r hidden md:flex flex-col h-[calc(100vh-4rem)] overflow-y-auto">
+            {/* Mejorar espaciado en la navegación */}
+            <nav className="py-4 px-3">
+              <div className="space-y-6">
                 {filteredNavCategories.map((category, index) => (
-                  <div key={index} className="space-y-1">
+                  <div key={index} className="space-y-3 mb-6 pb-4 border-b border-border last:border-0 last:mb-0 last:pb-0">
                     {category.name && (
-                      <h3 className="text-xs font-semibold text-muted-foreground tracking-wider uppercase px-3">
+                      <h3 className="text-xs font-semibold text-primary tracking-wider uppercase px-3 mb-3">
                         {category.name}
                       </h3>
                     )}
                     {category.items.length > 0 && (
-                      <ul className="space-y-0.5">
+                      <ul className="space-y-1 rounded-md bg-accent/10 p-1.5">
                         {category.items.map((item) => (
                           <li key={item.href}>
                             <Link
                               href={item.href}
                               className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all hover:bg-accent",
+                                "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-all hover:bg-accent",
                                 pathname && item.isActive(pathname) ? "bg-accent text-accent-foreground font-medium" : "text-muted-foreground"
                               )}
                             >
@@ -277,7 +280,13 @@ export default function DashboardLayout({
               />
               <div className="fixed inset-y-0 left-0 z-40 w-64 bg-background">
                 <div className="flex items-center justify-between p-4 border-b">
-                  <div className="text-xl font-bold">Sistema de Gestión</div>
+                  <Link href="/dashboard" className="flex items-center" onClick={toggleSidebar}>
+                    <img 
+                      src="/logo-austech.png" 
+                      alt="Austech Logo" 
+                      className="h-8 w-auto object-contain"
+                    />
+                  </Link>
                   <Button variant="ghost" size="icon" onClick={toggleSidebar}>
                     <X className="h-5 w-5" />
                   </Button>
@@ -285,14 +294,14 @@ export default function DashboardLayout({
                 <nav className="py-1 px-2">
                   <div className="space-y-2">
                     {filteredNavCategories.map((category, index) => (
-                      <div key={index} className="space-y-1">
+                      <div key={index} className="space-y-3 mb-6 pb-4 border-b border-border last:border-0 last:mb-0 last:pb-0">
                         {category.name && (
-                          <h3 className="text-xs font-semibold text-muted-foreground tracking-wider uppercase px-3">
+                          <h3 className="text-xs font-semibold text-primary tracking-wider uppercase px-3 mb-3">
                             {category.name}
                           </h3>
                         )}
                         {category.items.length > 0 && (
-                          <ul className="space-y-0.5">
+                          <ul className="space-y-1 rounded-md bg-accent/10 p-1.5">
                             {category.items.map((item) => (
                               <li key={item.href}>
                                 <Link

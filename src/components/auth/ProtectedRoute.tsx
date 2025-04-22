@@ -23,13 +23,8 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     if (!loading) {
-      // Agregar logs para depuración
-      console.log('ProtectedRoute - Current role:', role);
-      console.log('ProtectedRoute - Allowed roles:', roles);
-      console.log('ProtectedRoute - Current pathname:', pathname);
-      
+      // Solo redirigir si no hay sesión
       if (!session) {
-        console.log('ProtectedRoute - No session, redirecting to', redirectTo);
         router.push(redirectTo);
         return;
       }
@@ -38,7 +33,6 @@ export default function ProtectedRoute({
       if (role === 'cliente') {
         // Si el cliente intenta acceder al dashboard principal, redirigirlo a su dashboard específico
         if (pathname === '/dashboard') {
-          console.log('ProtectedRoute - Cliente trying to access main dashboard, redirecting to /cliente');
           router.push('/cliente');
           return;
         }
@@ -59,7 +53,6 @@ export default function ProtectedRoute({
         );
         
         if (esRutaRestringida) {
-          console.log('ProtectedRoute - Cliente trying to access restricted route, redirecting to /cliente');
           router.push('/cliente');
           return;
         }
@@ -71,10 +64,7 @@ export default function ProtectedRoute({
         const userRoleLower = role.toLowerCase();
         const rolesLower = roles.map(r => r.toLowerCase());
         
-        console.log('ProtectedRoute - Comparing lowercase:', userRoleLower, 'against', rolesLower);
-        
         if (!rolesLower.includes(userRoleLower)) {
-          console.log('ProtectedRoute - Role not allowed, redirecting to acceso-denegado');
           router.push('/acceso-denegado');
           return;
         }
@@ -82,10 +72,16 @@ export default function ProtectedRoute({
     }
   }, [loading, session, role, roles, redirectTo, router]);
 
+  // Si está cargando, mostrar el componente de carga
   if (loading) {
-    return <div>Cargando...</div>;
+    return <Loading fullScreen={false} />;
+  }
+  
+  // Si no hay sesión, mostrar un mensaje mientras se redirecciona
+  if (!session) {
+    return <Loading fullScreen={false} />;
   }
 
-  // Renderizar los children solo si hay sesión y el usuario tiene el rol requerido (o no hay rol requerido)
+  // Renderizar los children solo si hay sesión y el usuario tiene el rol requerido
   return <>{children}</>;
 }
