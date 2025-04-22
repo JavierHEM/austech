@@ -83,8 +83,7 @@ export default function ReporteAfiladosPorClientePage() {
       'Estado Sierra': item.estado_sierra,
       'Fecha Afilado': format(new Date(item.fecha_afilado), 'dd/MM/yyyy'),
       'Fecha Registro': format(new Date(item.fecha_registro), 'dd/MM/yyyy'),
-      'Activo': item.activo ? 'Sí' : 'No',
-      'Observaciones': item.observaciones || ''
+      'Activo': item.activo ? 'Sí' : 'No'
     }));
 
     // Crear libro de Excel
@@ -94,7 +93,7 @@ export default function ReporteAfiladosPorClientePage() {
 
     // Ajustar anchos de columna
     const columnWidths = [
-      { wch: 25 }, // Empresa
+      { wch: 20 }, // Empresa
       { wch: 20 }, // Sucursal
       { wch: 15 }, // Tipo Sierra
       { wch: 15 }, // Código Sierra
@@ -102,8 +101,7 @@ export default function ReporteAfiladosPorClientePage() {
       { wch: 15 }, // Estado Sierra
       { wch: 15 }, // Fecha Afilado
       { wch: 15 }, // Fecha Registro
-      { wch: 10 }, // Activo
-      { wch: 30 }  // Observaciones
+      { wch: 10 }  // Activo
     ];
     worksheet['!cols'] = columnWidths;
 
@@ -306,12 +304,7 @@ export default function ReporteAfiladosPorClientePage() {
                                                 </Badge>
                                               </div>
                                             </div>
-                                            {selectedItem.observaciones && (
-                                              <div>
-                                                <h4 className="text-sm font-medium">Observaciones</h4>
-                                                <p className="text-sm whitespace-pre-wrap">{selectedItem.observaciones}</p>
-                                              </div>
-                                            )}
+
                                           </div>
                                         )}
                                       </DialogContent>
