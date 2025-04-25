@@ -19,16 +19,16 @@ import {
 } from "@/components/ui/tooltip";
 import { 
   Scissors, 
-  Plus, 
+  Filter, 
+  ArrowUpDown, 
+  Calendar, 
+  Barcode, 
   Edit, 
   Trash2, 
-  Loader2,
-  CheckCircle2,
-  Filter,
-  ArrowUpDown,
-  Calendar,
-  Barcode,
-  Tag
+  CheckCircle2, 
+  Loader2, 
+  Tag,
+  Plus
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -54,23 +54,97 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase-client';
-import { getAfilados, deleteAfilado, AfiladoFilters, PaginatedAfilados } from '@/services/afiladoService';
+import { getAfilados, deleteAfilado, AfiladoFilters, PaginatedAfilados, getEmpresaIdByAuthId } from '@/services/afiladoService';
+import { marcarSierraListaParaRetiro, getSierraByCodigoBarras } from '@/services/sierraService';
+import SierraSearchBar from '@/components/afilados/SierraSearchBar';
+import AfiladoSearchBar from '@/components/afilados/AfiladoSearchBar';
 import AfiladoFiltersComponent from '@/components/afilados/AfiladoFilters';
+import { useAuth } from '@/hooks/use-auth';
+import { useRouter } from 'next/navigation';
 
 export default function AfiladosPage() {
   const { toast } = useToast();
+  const { session, role } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [afilados, setAfilados] = useState<any[]>([]);
+  const [sierrasListasParaRetiro, setSierrasListasParaRetiro] = useState<number[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [afiladoToDelete, setAfiladoToDelete] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [completarLoading, setCompletarLoading] = useState<number | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<AfiladoFilters>({});
   const [sortField, setSortField] = useState<string>('fecha_afilado');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [empresaId, setEmpresaId] = useState<number | null>(null);
+  const isCliente = role === 'cliente';
 
+  // Manejar búsqueda por código de barras
+  const handleSearch = async (codigoBarras: string) => {
+    // Si el código está vacío, resetear los filtros y mostrar todos los afilados
+    if (!codigoBarras) {
+      if (filters.sierra_id) {
+        const newFilters = { ...filters, sierra_id: null };
+        setFilters(newFilters);
+      }
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const sierra = await getSierraByCodigoBarras(codigoBarras);
+      
+      if (!sierra) {
+        toast({
+          title: 'Sierra no encontrada',
+          description: `No se encontró ninguna sierra con el código ${codigoBarras}`,
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Actualizar filtros para mostrar solo los afilados de esta sierra
+      const newFilters = { ...filters, sierra_id: sierra.id };
+      setFilters(newFilters);
+      
+      toast({
+        title: 'Sierra encontrada',
+        description: `Mostrando afilados para la sierra #${sierra.id} (${sierra.codigo_barras})`
+      });
+    } catch (error) {
+      console.error('Error al buscar sierra:', error);
+      toast({
+        title: 'Error',
+        description: 'Ocurrió un error al buscar la sierra',
+        variant: 'destructive'
+      });
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Redirigir a los usuarios con rol 'cliente' a su dashboard específico si intentan acceder directamente a esta página
+  useEffect(() => {
+    if (isCliente) {
+      router.push('/dashboardcliente');
+    }
+  }, [isCliente, router]);
+
+  // Obtener el ID de empresa del usuario si es cliente
+  useEffect(() => {
+    const fetchEmpresaId = async () => {
+      if (session?.user?.id && isCliente) {
+        const id = await getEmpresaIdByAuthId(session.user.id);
+        setEmpresaId(id);
+      }
+    };
+    fetchEmpresaId();
+  }, [session, isCliente]);
 
   // Cargar afilados
   const loadAfilados = async () => {
@@ -81,8 +155,57 @@ export default function AfiladosPage() {
         currentPage,
         pageSize,
         sortField,
-        sortDirection
+        sortDirection,
+        isCliente && empresaId ? empresaId : undefined
       );
+      
+      // Obtener información completa de las sierras
+      const sierraIds = result.data.map(afilado => afilado.sierra_id);
+      if (sierraIds.length > 0) {
+        // Usar una anotación de tipo para evitar errores
+        interface SierraData {
+          id: number;
+          estado_id: number;
+          codigo_barras: string;
+          tipo_id: number;
+          sucursal_id: number;
+          tipos_sierra: { nombre: string } | null;
+          estados_sierra: { nombre: string } | null;
+          sucursales: { nombre: string } | null;
+        }
+        
+        const { data: sierras } = await supabase
+          .from('sierras')
+          .select('id, estado_id, codigo_barras, tipo_id, sucursal_id, tipos_sierra:tipo_id(nombre), estados_sierra:estado_id(nombre), sucursales:sucursal_id(nombre)')
+          .in('id', sierraIds) as { data: SierraData[] | null };
+        
+        // Actualizar el estado de las sierras listas para retiro
+        const listasParaRetiro = sierras
+          ?.filter(sierra => sierra.estado_id === 3)
+          .map(sierra => sierra.id) || [];
+        
+        setSierrasListasParaRetiro(listasParaRetiro);
+        
+        // Actualizar los datos de las sierras en los afilados
+        const afiladosConDatosSierra = result.data.map(afilado => {
+          const sierra = sierras?.find(s => s.id === afilado.sierra_id);
+          return {
+            ...afilado,
+            sierra: sierra ? {
+              ...afilado.sierra,
+              codigo_barras: sierra.codigo_barras,
+              tipo: sierra.tipos_sierra?.nombre || 'Sin tipo',
+              estado: sierra.estados_sierra?.nombre || 'Sin estado',
+              sucursal: sierra.sucursales?.nombre || 'Sin sucursal'
+            } : afilado.sierra
+          };
+        });
+        
+        setAfilados(afiladosConDatosSierra || []);
+        setTotalCount(result.count);
+        return; // Salir temprano ya que ya hemos establecido los afilados
+      }
+      
       setAfilados(result.data || []);
       setTotalCount(result.count);
     } catch (error) {
@@ -163,22 +286,39 @@ export default function AfiladosPage() {
           <h1 className="text-3xl font-bold">Afilados</h1>
           <p className="text-muted-foreground">Gestione los afilados de sierras en el sistema</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center"
-          >
-            <Filter className="mr-2 h-4 w-4" />
-            {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
-          </Button>
-          <Link href="/afilados/crear">
-            <Button size="lg" className="w-full sm:w-auto">
-              <Plus className="mr-2 h-5 w-5" />
-              Nuevo Afilado
-            </Button>
-          </Link>
-        </div>
+        <Button 
+          variant="outline" 
+          onClick={() => setShowFilters(!showFilters)}
+          className="flex items-center"
+        >
+          <Filter className="mr-2 h-4 w-4" />
+          {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+        </Button>
+      </div>
+
+      {/* Barra de búsqueda de sierra */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-4" id="nuevo-afilado-card">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold">Registrar nuevo afilado</h2>
+            <p className="text-sm text-muted-foreground mb-2">Escanee el código de barras de la sierra o ingréselo manualmente</p>
+            <SierraSearchBar />
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold">Buscar afilados por sierra</h2>
+            <p className="text-sm text-muted-foreground mb-2">Filtre la tabla por código de barras de sierra</p>
+            <AfiladoSearchBar onSearch={handleSearch} />
+            {searchLoading && (
+              <div className="flex items-center mt-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Buscando sierra...
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
       
       {showFilters && (
@@ -189,7 +329,7 @@ export default function AfiladosPage() {
         <CardHeader>
           <CardTitle>Lista de Afilados</CardTitle>
           <CardDescription>
-            Gestione los afilados realizados a las sierras
+            Historial de afilados realizados a las sierras
             {Object.values(filters).some(v => v !== null && v !== undefined) && (
               <Badge variant="outline" className="ml-2">
                 Filtros aplicados
@@ -276,19 +416,14 @@ export default function AfiladosPage() {
                   {afilados.map((afilado) => (
                     <TableRow key={afilado.id}>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <div className="flex items-center">
-                            <Barcode className="h-4 w-4 mr-1 text-muted-foreground" />
-                            <Link 
-                              href={`/sierras/${afilado.sierra_id}`}
-                              className="font-medium text-primary hover:underline"
-                            >
-                              {afilado.sierra?.codigo_barras || `Sierra #${afilado.sierra_id}`}
-                            </Link>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {afilado.sierra?.sucursales?.nombre || 'Sin sucursal'}
-                          </span>
+                        <div className="flex items-center">
+                          <Barcode className="h-4 w-4 mr-1 text-muted-foreground" />
+                          <Link 
+                            href={`/sierras/${afilado.sierra_id}`}
+                            className="font-medium text-primary hover:underline"
+                          >
+                            {afilado.sierra?.codigo_barras || `Sierra #${afilado.sierra_id}`}
+                          </Link>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -318,9 +453,13 @@ export default function AfiladosPage() {
                         }
                       </TableCell>
                       <TableCell>
-                        <Badge variant={afilado.fecha_salida ? 'success' : 'secondary'}>
-                          {afilado.fecha_salida ? 'Completado' : 'En proceso'}
-                        </Badge>
+                        {afilado.fecha_salida ? (
+                          <Badge variant="success">Completado</Badge>
+                        ) : sierrasListasParaRetiro.includes(afilado.sierra_id) ? (
+                          <Badge variant="outline" className="border-amber-500 text-amber-500">Lista para retiro</Badge>
+                        ) : (
+                          <Badge variant="secondary">En proceso</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end items-center space-x-2">
@@ -328,26 +467,56 @@ export default function AfiladosPage() {
                             <TooltipProvider delayDuration={300}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Link href={`/afilados/completar/${afilado.id}`}>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      className="text-green-500 flex items-center gap-1"
-                                      aria-label="Completar afilado"
-                                    >
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="text-green-500 flex items-center gap-1"
+                                    aria-label="Completar afilado"
+                                    onClick={async () => {
+                                       setCompletarLoading(afilado.sierra_id);
+                                       try {
+                                          await marcarSierraListaParaRetiro(afilado.sierra_id); // Usar el ID real de la sierra
+                                          
+                                          // Actualizar el estado visual inmediatamente
+                                          setSierrasListasParaRetiro(prev => [...prev, afilado.sierra_id]);
+                                          
+                                          toast({
+                                            title: 'Sierra actualizada',
+                                            description: 'La sierra ha sido marcada como lista para retiro.'
+                                          });
+                                          
+                                          // Recargar los datos después de un breve retraso
+                                          setTimeout(() => {
+                                            loadAfilados();
+                                          }, 1000);
+                                      } catch (error: any) {
+                                        console.error('Error al marcar sierra como lista para retiro:', error);
+                                        toast({
+                                          title: 'Error',
+                                          description: error.message || 'No se pudo marcar la sierra como lista para retiro.',
+                                          variant: 'destructive'
+                                        });
+                                      } finally {
+                                        setCompletarLoading(null);
+                                      }
+                                    }}
+                                    disabled={completarLoading === afilado.sierra_id}
+                                  >
+                                    {completarLoading === afilado.sierra_id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
                                       <CheckCircle2 className="h-4 w-4" />
-                                      <span className="hidden sm:inline">Completar</span>
-                                    </Button>
-                                  </Link>
+                                    )}
+                                    <span className="hidden sm:inline">Completar</span>
+                                  </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="bg-black text-white px-3 py-2 rounded-md text-xs">
                                   Completar afilado
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-                          )}
-                          
-                          <TooltipProvider delayDuration={300}>
+                           )}
+                           <TooltipProvider delayDuration={300}>
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Link href={`/afilados/${afilado.id}`}>
@@ -367,7 +536,7 @@ export default function AfiladosPage() {
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                          
+
                           <AlertDialog>
                             <TooltipProvider delayDuration={300}>
                               <Tooltip>
@@ -412,10 +581,10 @@ export default function AfiladosPage() {
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
-                        </div>
+                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ))}  
                 </TableBody>
               </Table>
             </div>

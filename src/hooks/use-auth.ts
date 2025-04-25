@@ -111,7 +111,7 @@ export function useAuth() {
       } else if (roleName.toLowerCase() === 'cliente') {
         typedRole = 'cliente';
       }
-
+      
       // Guardar el rol en caché para futuras consultas
       if (typedRole) {
         userRoleCache.set(userId, typedRole);
@@ -119,14 +119,14 @@ export function useAuth() {
       
       return typedRole;
     } catch (error) {
-      console.error('Error al obtener el rol:', error);
+      console.error('Error al obtener el rol del usuario:', error);
       return null;
     }
   };
 
-  // Función para manejar la redirección basada en el rol
+  // Manejar redirecciones basadas en rol (solo cuando se solicita explícitamente)
   const handleRoleBasedRedirection = useCallback((userRole: UserRole) => {
-    if (isRedirecting) return; // Evitar múltiples redirecciones
+    if (isRedirecting) return; // Evitar redirecciones múltiples
     
     if (userRole === 'gerente' || userRole === 'administrador') {
       setIsRedirecting(true);

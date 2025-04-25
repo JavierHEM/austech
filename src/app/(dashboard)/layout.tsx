@@ -50,7 +50,7 @@ const navCategories: NavCategory[] = [
         label: 'Inicio',
         href: '/dashboard',
         icon: <Home className="h-5 w-5" />,
-        isActive: (pathname) => pathname ? pathname === '/dashboard' : false,
+        isActive: (pathname) => pathname ? (pathname === '/dashboard' || pathname === '/cliente') : false,
         requiredRoles: ['gerente', 'administrador', 'cliente'] // Todos los roles pueden ver el inicio
       },
       {
@@ -212,7 +212,10 @@ export default function DashboardLayout({
               <Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden">
                 <Menu className="h-5 w-5" />
               </Button>
-              <Link href="/dashboard" className="flex items-center ml-2 md:ml-0">
+              <Link 
+                href={role === 'cliente' ? "/cliente" : "/dashboard"} 
+                className="flex items-center ml-2 md:ml-0"
+              >
                 <img 
                   src="/logo-austech.png" 
                   alt="Austech Logo" 
@@ -280,7 +283,11 @@ export default function DashboardLayout({
               />
               <div className="fixed inset-y-0 left-0 z-40 w-64 bg-background">
                 <div className="flex items-center justify-between p-4 border-b">
-                  <Link href="/dashboard" className="flex items-center" onClick={toggleSidebar}>
+                  <Link 
+                    href={role === 'cliente' ? "/cliente" : "/dashboard"} 
+                    className="flex items-center" 
+                    onClick={toggleSidebar}
+                  >
                     <img 
                       src="/logo-austech.png" 
                       alt="Austech Logo" 

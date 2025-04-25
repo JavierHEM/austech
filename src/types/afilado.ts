@@ -22,7 +22,8 @@ export interface Afilado {
 
 export interface AfiladoConRelaciones extends Afilado {
   sierra?: any;
-  tipo_afilado?: TipoAfilado;
+  tipo_afilado: TipoAfilado;
+  urgente: boolean;
 }
 
 export interface AfiladoFilters {

@@ -122,31 +122,15 @@ export default function SierraFilters({ onFilterChange }: SierraFiltersProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const sucursalIdValue = sucursalId === 'all' 
-      ? null 
-      : parseInt(sucursalId);
-    
-    const tipoSierraIdValue = tipoSierraId === 'all' 
-      ? null 
-      : parseInt(tipoSierraId);
-    
-    const estadoSierraIdValue = estadoSierraId === 'all' 
-      ? null 
-      : parseInt(estadoSierraId);
-    
-    const activoValue = activo === 'all' 
-      ? null 
-      : activo === 'true' 
-        ? true 
-        : false;
-    
-    onFilterChange({
+    const filters: SierraFiltersType = {
       codigo_barras: codigoBarras || undefined,
-      sucursal_id: sucursalIdValue,
-      tipo_sierra_id: tipoSierraIdValue,
-      estado_id: estadoSierraIdValue,
-      activo: activoValue
-    });
+      sucursal_id: sucursalId !== 'all' ? parseInt(sucursalId) : null,
+      tipo_sierra_id: tipoSierraId !== 'all' ? parseInt(tipoSierraId) : null,
+      estado_id: estadoSierraId !== 'all' ? parseInt(estadoSierraId) : null,
+      activo: activo !== 'all' ? activo === 'true' : null
+    };
+    
+    onFilterChange(filters);
   };
 
   const handleReset = () => {

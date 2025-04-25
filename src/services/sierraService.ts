@@ -43,8 +43,8 @@ export const getSierras = async (
       query = query.eq('estado_id', filters.estado_id);
     }
     
-    if (filters.activo !== undefined) {
-      query = query.eq('activo', filters.activo);
+    if (filters.activo !== undefined && filters.activo !== null) {
+      query = query.eq('activo', filters.activo === true);
     }
     
     // Calcular el rango para la paginación
@@ -188,12 +188,17 @@ export const createSierra = async (sierra: Omit<Sierra, 'id' | 'creado_en' | 'mo
  */
 export const updateSierra = async (id: number, sierra: Partial<Omit<Sierra, 'id' | 'creado_en' | 'modificado_en'>>): Promise<Sierra> => {
   try {
+    // Si la sierra se está desactivando, también actualizar su estado a "Fuera de servicio"
+    const updateData = {
+      ...sierra,
+      modificado_en: new Date().toISOString(),
+      // Si activo es false, establecer estado_id a 4 (Fuera de servicio)
+      ...(sierra.activo === false && { estado_id: 4 })
+    };
+
     const { data, error } = await supabase
       .from('sierras')
-      .update({
-        ...sierra,
-        modificado_en: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();
@@ -238,25 +243,79 @@ export const updateEstadoSierra = async (id: number, estadoSierraId: number): Pr
 };
 
 /**
- * Elimina una sierra (borrado lógico)
+ * Busca una sierra por su código de barras
  */
-export const deleteSierra = async (id: number): Promise<void> => {
+export const getSierraByCodigoBarras = async (codigoBarras: string): Promise<SierraConRelaciones | null> => {
   try {
-    // Realizamos un borrado lógico cambiando el estado a inactivo
-    const { error } = await supabase
+    const { data, error } = await supabase
+      .from('sierras')
+      .select(`
+        *,
+        sucursal:sucursales(*),
+        tipo_sierra:tipos_sierra(*),
+        estado_sierra:estados_sierra(*)
+      `)
+      .eq('codigo_barras', codigoBarras)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') { // No se encontró ningún resultado
+        return null;
+      }
+      console.error('Error al buscar sierra por código de barras:', error);
+      throw new Error(error.message);
+    }
+
+    return data as SierraConRelaciones;
+  } catch (error) {
+    console.error('Error en getSierraByCodigoBarras:', error);
+    throw error;
+  }
+};
+
+/**
+ * Desactiva una sierra y la marca como fuera de servicio
+ */
+export const desactivarSierra = async (id: number): Promise<void> => {
+  try {
+    // Primero verificamos que la sierra exista y esté activa
+    const { data: sierra, error: checkError } = await supabase
+      .from('sierras')
+      .select('id, activo')
+      .eq('id', id)
+      .single();
+
+    if (checkError) {
+      console.error('Error al verificar sierra:', checkError);
+      throw new Error(checkError.message);
+    }
+
+    if (!sierra) {
+      throw new Error('No se encontró la sierra');
+    }
+
+    if (!sierra.activo) {
+      throw new Error('La sierra ya está desactivada');
+    }
+
+    // Realizamos la actualización
+    const { error: updateError } = await supabase
       .from('sierras')
       .update({
         activo: false,
+        estado_id: 4, // Estado "Fuera de servicio"
         modificado_en: new Date().toISOString()
       })
       .eq('id', id);
-    
-    if (error) {
-      console.error('Error al eliminar sierra:', error);
-      throw new Error(error.message);
+
+    if (updateError) {
+      console.error('Error al desactivar sierra:', updateError);
+      throw new Error(updateError.message);
     }
+
+    console.log('Sierra desactivada exitosamente');
   } catch (error) {
-    console.error('Error en deleteSierra:', error);
+    console.error('Error en desactivarSierra:', error);
     throw error;
   }
 };
@@ -306,6 +365,57 @@ export const getEstadosSierra = async (): Promise<any[]> => {
     return data;
   } catch (error) {
     console.error('Error en getEstadosSierra:', error);
+    throw error;
+  }
+};
+
+/**
+ * Activa una sierra y la marca como disponible
+ */
+/**
+ * Marca una sierra como lista para retiro
+ */
+export const marcarSierraListaParaRetiro = async (id: number): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('sierras')
+      .update({
+        estado_id: 3, // Estado "Lista para retiro"
+        modificado_en: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error al marcar sierra como lista para retiro:', error);
+      throw new Error(error.message);
+    }
+
+    console.log('Sierra marcada como lista para retiro exitosamente');
+  } catch (error) {
+    console.error('Error en marcarSierraListaParaRetiro:', error);
+    throw error;
+  }
+};
+
+export const activateSierra = async (id: number): Promise<void> => {
+  try {
+    const { error } = await supabase
+      .from('sierras')
+      .update({
+        activo: true,
+        estado_id: 1, // Estado "Disponible"
+        modificado_en: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error al activar sierra:', error);
+      throw new Error(error.message);
+    }
+
+    console.log('Sierra activada exitosamente');
+  } catch (error) {
+    console.error('Error en activateSierra:', error);
     throw error;
   }
 };

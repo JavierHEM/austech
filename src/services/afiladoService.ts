@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase-client';
 import { Afilado, AfiladoConRelaciones, AfiladoFilters } from '@/types/afilado';
+import { Usuario } from '@/types/usuario';
 import { SierraConRelaciones } from '@/types/sierra';
 
 /**
@@ -18,7 +19,8 @@ export const getAfilados = async (
   page: number = 1, 
   pageSize: number = 10,
   sortField: string = 'fecha_afilado',
-  sortDirection: 'asc' | 'desc' = 'desc'
+  sortDirection: 'asc' | 'desc' = 'desc',
+  empresaId?: number
 ): Promise<PaginatedAfilados> => {
   try {
     // Primero obtenemos el conteo total para la paginación
@@ -42,6 +44,23 @@ export const getAfilados = async (
       
       if (filters.fecha_hasta) {
         countQuery = countQuery.lte('fecha_afilado', filters.fecha_hasta);
+      }
+    }
+    
+    // Si se proporciona un ID de empresa (para clientes), filtrar por empresa
+    if (empresaId) {
+      // Primero obtenemos los IDs de las sierras de la empresa
+      const { data: sierrasData } = await supabase
+        .from('sierras')
+        .select('id')
+        .eq('empresa_id', empresaId);
+      
+      if (sierrasData && sierrasData.length > 0) {
+        const sierraIds = sierrasData.map(sierra => sierra.id);
+        countQuery = countQuery.in('sierra_id', sierraIds);
+      } else {
+        // Si no hay sierras para esta empresa, forzar resultado vacío
+        countQuery = countQuery.eq('id', -1); // ID que no existirá
       }
     }
     
@@ -86,6 +105,23 @@ export const getAfilados = async (
       }
     }
     
+    // Si se proporciona un ID de empresa (para clientes), filtrar por empresa
+    if (empresaId) {
+      // Primero obtenemos los IDs de las sierras de la empresa
+      const { data: sierrasData } = await supabase
+        .from('sierras')
+        .select('id')
+        .eq('empresa_id', empresaId);
+      
+      if (sierrasData && sierrasData.length > 0) {
+        const sierraIds = sierrasData.map(sierra => sierra.id);
+        query = query.in('sierra_id', sierraIds);
+      } else {
+        // Si no hay sierras para esta empresa, forzar resultado vacío
+        query = query.eq('id', -1); // ID que no existirá
+      }
+    }
+    
     const { data, error } = await query;
     
     if (error) {
@@ -104,19 +140,60 @@ export const getAfilados = async (
 };
 
 /**
- * Obtiene un afilado por su ID
+ * Obtiene el ID de empresa de un usuario por su auth_id
  */
-export const getAfiladoById = async (id: number): Promise<AfiladoConRelaciones | null> => {
+export const getEmpresaIdByAuthId = async (authId: string): Promise<number | null> => {
   try {
     const { data, error } = await supabase
+      .from('usuarios')
+      .select('empresa_id')
+      .eq('auth_id', authId)
+      .single();
+    
+    if (error) {
+      console.error('Error al obtener empresa_id del usuario:', error);
+      return null;
+    }
+    
+    return data?.empresa_id || null;
+  } catch (error) {
+    console.error('Error en getEmpresaIdByAuthId:', error);
+    return null;
+  }
+};
+
+/**
+ * Obtiene un afilado por su ID
+ */
+export const getAfiladoById = async (id: number, empresaId?: number): Promise<AfiladoConRelaciones | null> => {
+  try {
+    let query = supabase
       .from('afilados')
       .select(`
         *,
-        sierra:sierra_id(*),
+        sierra:sierra_id(*, sucursales(*), tipos_sierra(*), estados_sierra(*)),
         tipo_afilado:tipo_afilado_id(*)
       `)
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+      
+    // Si se proporciona un ID de empresa (para clientes), verificar que el afilado pertenezca a esa empresa
+    if (empresaId) {
+      // Primero obtenemos los IDs de las sierras de la empresa
+      const { data: sierrasData } = await supabase
+        .from('sierras')
+        .select('id')
+        .eq('empresa_id', empresaId);
+      
+      if (sierrasData && sierrasData.length > 0) {
+        const sierraIds = sierrasData.map(sierra => sierra.id);
+        query = query.in('sierra_id', sierraIds);
+      } else {
+        // Si no hay sierras para esta empresa, forzar resultado vacío
+        query = query.eq('id', -1); // ID que no existirá
+      }
+    }
+    
+    const { data, error } = await query.single();
     
     if (error) {
       if (error.code === 'PGRST116') {

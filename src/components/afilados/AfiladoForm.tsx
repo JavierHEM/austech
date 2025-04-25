@@ -32,12 +32,15 @@ import {
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { 
-  Loader2, 
-  CalendarIcon, 
   Scissors, 
+  Search, 
+  Loader2, 
   Barcode, 
-  Search,
+  CalendarIcon, 
+  X,
+  Save,
   CheckCircle2,
+  AlertCircle,
   ArrowLeft
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -159,12 +162,120 @@ export default function AfiladoForm({
                 // Cargar detalles de la sierra
                 if (afilado.sierra) {
                   console.log('Sierra desde afilado:', afilado.sierra);
+                  // Cargar información completa de la sierra si es necesario
+                  const sierraData = afilado.sierra;
+                  
+                  // Cargar tipo de sierra si falta
+                  if (!sierraData.tipos_sierra && sierraData.tipo_sierra_id) {
+                    try {
+                      const { data: tipoSierra } = await supabase
+                        .from('tipos_sierra')
+                        .select('*')
+                        .eq('id', sierraData.tipo_sierra_id)
+                        .single();
+                      
+                      if (tipoSierra) {
+                        sierraData.tipos_sierra = tipoSierra;
+                      }
+                    } catch (tipoError) {
+                      console.error('Error al cargar tipo de sierra:', tipoError);
+                    }
+                  }
+                  
+                  // Cargar sucursal si falta
+                  if (!sierraData.sucursales && sierraData.sucursal_id) {
+                    try {
+                      const { data: sucursal } = await supabase
+                        .from('sucursales')
+                        .select('*')
+                        .eq('id', sierraData.sucursal_id)
+                        .single();
+                      
+                      if (sucursal) {
+                        sierraData.sucursales = sucursal;
+                      }
+                    } catch (sucursalError) {
+                      console.error('Error al cargar sucursal:', sucursalError);
+                    }
+                  }
+                  
+                  // Cargar estado si falta
+                  if (!sierraData.estados_sierra && sierraData.estado_id) {
+                    try {
+                      const { data: estado } = await supabase
+                        .from('estados_sierra')
+                        .select('*')
+                        .eq('id', sierraData.estado_id)
+                        .single();
+                      
+                      if (estado) {
+                        sierraData.estados_sierra = estado;
+                      }
+                    } catch (estadoError) {
+                      console.error('Error al cargar estado de sierra:', estadoError);
+                    }
+                  }
                   setSelectedSierra(afilado.sierra);
                 } else if (afilado.sierra_id) {
                   console.log('Cargando sierra por ID:', afilado.sierra_id);
                   try {
                     const sierra = await getSierraById(afilado.sierra_id);
                     console.log('Sierra cargada por ID:', sierra);
+                    
+                    // Cargar información completa de la sierra si es necesario
+                    if (sierra) {
+                      // Cargar tipo de sierra si falta
+                      if (!sierra.tipo_sierra && sierra.tipo_sierra_id) {
+                        try {
+                          const { data: tipoSierra } = await supabase
+                            .from('tipos_sierra')
+                            .select('*')
+                            .eq('id', sierra.tipo_sierra_id)
+                            .single();
+                          
+                          if (tipoSierra) {
+                            sierra.tipo_sierra = tipoSierra;
+                          }
+                        } catch (tipoError) {
+                          console.error('Error al cargar tipo de sierra:', tipoError);
+                        }
+                      }
+                      
+                      // Cargar sucursal si falta
+                      if (!sierra.sucursal && sierra.sucursal_id) {
+                        try {
+                          const { data: sucursal } = await supabase
+                            .from('sucursales')
+                            .select('*')
+                            .eq('id', sierra.sucursal_id)
+                            .single();
+                          
+                          if (sucursal) {
+                            sierra.sucursal = sucursal;
+                          }
+                        } catch (sucursalError) {
+                          console.error('Error al cargar sucursal:', sucursalError);
+                        }
+                      }
+                      
+                      // Cargar estado si falta
+                      if (!sierra.estado_sierra && sierra.estado_id) {
+                        try {
+                          const { data: estado } = await supabase
+                            .from('estados_sierra')
+                            .select('*')
+                            .eq('id', sierra.estado_id)
+                            .single();
+                          
+                          if (estado) {
+                            sierra.estado_sierra = estado;
+                          }
+                        } catch (estadoError) {
+                          console.error('Error al cargar estado de sierra:', estadoError);
+                        }
+                      }
+                    }
+                    
                     setSelectedSierra(sierra);
                   } catch (sierraError) {
                     console.error('Error al cargar sierra por ID:', sierraError);
@@ -433,21 +544,24 @@ export default function AfiladoForm({
                         <div>
                           <p className="text-sm font-medium text-muted-foreground">Sucursal</p>
                           <p className="text-lg font-semibold">
-                            {selectedSierra.sucursales?.nombre || 'Sin sucursal'}
+                            {selectedSierra.sucursales?.nombre || selectedSierra.sucursal?.nombre || 'Sin sucursal'}
                           </p>
                         </div>
                         
                         <div>
                           <p className="text-sm font-medium text-muted-foreground">Tipo</p>
                           <p className="text-lg font-semibold">
-                            {selectedSierra.tipos_sierra?.nombre || 'Sin tipo'}
+                            {selectedSierra.tipos_sierra?.nombre || selectedSierra.tipo_sierra?.nombre || 'Sin tipo'}
                           </p>
                         </div>
                         
                         <div>
                           <p className="text-sm font-medium text-muted-foreground">Estado</p>
-                          <Badge variant={selectedSierra.estado_id === 1 ? 'success' : 'secondary'}>
-                            {selectedSierra.estados_sierra?.nombre || 'Sin estado'}
+                          <Badge 
+                            variant={selectedSierra.estado_id === 1 ? 'success' : selectedSierra.estado_id === 3 ? 'outline' : 'secondary'}
+                            className={selectedSierra.estado_id === 3 ? 'border-amber-500 text-amber-500' : ''}
+                          >
+                            {selectedSierra.estados_sierra?.nombre || selectedSierra.estado_sierra?.nombre || 'Sin estado'}
                           </Badge>
                         </div>
                       </div>
@@ -668,74 +782,96 @@ export default function AfiladoForm({
           <DialogHeader>
             <DialogTitle>Buscar Sierra</DialogTitle>
             <DialogDescription>
-              Busque por código de barras o ID de sierra
+              Escanee o ingrese el código de barras de la sierra
             </DialogDescription>
           </DialogHeader>
-          <div className="flex items-center space-x-2 py-4">
-            <div className="grid flex-1 gap-2">
-              <Input
-                value={searchSierra}
-                onChange={(e) => setSearchSierra(e.target.value)}
-                placeholder="Código de barras o ID"
-                className="h-12 text-base"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSearchSierra();
-                  }
-                }}
-              />
-            </div>
-            <Button 
-              type="button" 
-              size="lg" 
-              onClick={handleSearchSierra}
-              disabled={searchLoading}
-            >
-              {searchLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Search className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-          
-          <div className="max-h-72 overflow-y-auto">
-            {searchResults.length === 0 ? (
-              <div className="text-center py-4 text-muted-foreground">
-                {searchSierra.trim() 
-                  ? 'No se encontraron sierras disponibles con ese criterio' 
-                  : 'Ingrese un código de barras o ID para buscar'}
+          <div className="flex flex-col space-y-4 py-4">
+            <div className="flex items-center space-x-2">
+              <div className="relative flex-1">
+                <Barcode className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
+                <Input
+                  value={searchSierra}
+                  onChange={(e) => setSearchSierra(e.target.value)}
+                  placeholder="Código de barras"
+                  className="h-12 text-base pl-10"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSearchSierra();
+                    }
+                  }}
+                  autoFocus
+                />
               </div>
-            ) : (
-              <div className="space-y-2">
-                {searchResults.map((sierra) => (
-                  <div 
-                    key={sierra.id}
-                    className="border rounded-lg p-3 hover:bg-muted cursor-pointer transition-colors"
-                    onClick={() => handleSelectSierra(sierra)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Scissors className="h-5 w-5 mr-2 text-primary" />
-                        <span className="font-semibold">Sierra #{sierra.id}</span>
-                      </div>
-                      <Badge variant={sierra.estado_id === 1 ? 'success' : 'secondary'}>
-                        {sierra.estados_sierra?.nombre || 'Sin estado'}
-                      </Badge>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Código de Barras</p>
-                        <p className="font-medium">{sierra.codigo_barras}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Sucursal</p>
-                        <p className="font-medium">{sierra.sucursales?.nombre || 'Sin sucursal'}</p>
-                      </div>
-                    </div>
+              <Button 
+                type="button" 
+                size="lg" 
+                onClick={handleSearchSierra}
+                disabled={searchLoading}
+                className="h-12"
+              >
+                {searchLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Search className="h-5 w-5" />
+                )}
+              </Button>
+            </div>
+            
+            {searchLoading && (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2">Buscando sierra...</span>
+              </div>
+            )}
+            
+            {!searchLoading && searchSierra.trim() && searchResults.length === 0 && (
+              <div className="text-center py-6 space-y-2">
+                <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
+                <p className="font-medium">No se encontró ninguna sierra</p>
+                <p className="text-sm text-muted-foreground">
+                  No se encontró ninguna sierra con el código <strong>{searchSierra}</strong>
+                </p>
+              </div>
+            )}
+            
+            {!searchLoading && searchResults.length === 1 && (
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center">
+                    <Scissors className="h-5 w-5 mr-2 text-primary" />
+                    <span className="font-semibold text-lg">Sierra #{searchResults[0].id}</span>
                   </div>
-                ))}
+                  <Badge variant={searchResults[0].estado_id === 1 ? 'success' : 'secondary'}>
+                    {searchResults[0].estados_sierra?.nombre || 'Sin estado'}
+                  </Badge>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Código de Barras</p>
+                    <p className="text-base font-semibold flex items-center">
+                      <Barcode className="h-4 w-4 mr-1 text-muted-foreground" />
+                      {searchResults[0].codigo_barras}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Sucursal</p>
+                    <p className="text-base font-semibold">
+                      {searchResults[0].sucursales?.nombre || searchResults[0].sucursal?.nombre || 'Sin sucursal'}
+                    </p>
+                  </div>
+                </div>
+                
+                <Button
+                  type="button"
+                  className="w-full mt-4"
+                  onClick={() => handleSelectSierra(searchResults[0])}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Seleccionar esta sierra
+                </Button>
               </div>
             )}
           </div>

@@ -65,16 +65,25 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">
-              <Link href="/dashboard" className="text-xl font-bold">
+              <Link 
+                href={isCliente ? "/cliente" : "/dashboard"} 
+                className="text-xl font-bold"
+              >
                 AusTech
               </Link>
             </div>
             
             {/* Links de navegación - Versión desktop */}
             <div className="hidden md:ml-6 md:flex md:space-x-4 md:items-center">
-              <NavLink href="/dashboard" current={pathname ? pathname === '/dashboard' : false}>
-                Dashboard
-              </NavLink>
+              {isCliente ? (
+                <NavLink href="/cliente" current={pathname ? pathname === '/cliente' : false}>
+                  Dashboard
+                </NavLink>
+              ) : (
+                <NavLink href="/dashboard" current={pathname ? pathname === '/dashboard' : false}>
+                  Dashboard
+                </NavLink>
+              )}
               
               {(isAdministrador || isGerente) && (
                 <>
@@ -90,9 +99,12 @@ export default function Navbar() {
                 </>
               )}
               
-              <NavLink href="/afilados" current={pathname ? pathname.startsWith('/afilados') : false}>
-                Afilados
-              </NavLink>
+              {/* El cliente solo puede ver sus afilados en el dashboard */}
+              {!isCliente && (
+                <NavLink href="/afilados" current={pathname ? pathname.startsWith('/afilados') : false}>
+                  Afilados
+                </NavLink>
+              )}
               
               {(isAdministrador || isGerente) && (
                 <>
@@ -145,9 +157,15 @@ export default function Navbar() {
       {isOpen && (
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <MobileNavLink href="/dashboard" current={pathname ? pathname === '/dashboard' : false}>
-              Dashboard
-            </MobileNavLink>
+            {isCliente ? (
+              <MobileNavLink href="/cliente" current={pathname ? pathname === '/cliente' : false}>
+                Dashboard
+              </MobileNavLink>
+            ) : (
+              <MobileNavLink href="/dashboard" current={pathname ? pathname === '/dashboard' : false}>
+                Dashboard
+              </MobileNavLink>
+            )}
             
             {(isAdministrador || isGerente) && (
               <>
@@ -163,9 +181,12 @@ export default function Navbar() {
               </>
             )}
             
-            <MobileNavLink href="/afilados" current={pathname ? pathname.startsWith('/afilados') : false}>
-              Afilados
-            </MobileNavLink>
+            {/* El cliente solo puede ver sus afilados en el dashboard */}
+            {!isCliente && (
+              <MobileNavLink href="/afilados" current={pathname ? pathname.startsWith('/afilados') : false}>
+                Afilados
+              </MobileNavLink>
+            )}
             
             {(isAdministrador || isGerente) && (
               <>

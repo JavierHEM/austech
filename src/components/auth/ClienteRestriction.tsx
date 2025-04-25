@@ -2,6 +2,7 @@
 
 import { useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/lib/supabase-client';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -62,30 +63,11 @@ export default function ClienteRestriction({
           return;
         }
 
-        // Obtener las empresas relacionadas con el usuario actual
-        const { data: relacionadas, error: relacionadasError } = await supabase
-          .from('empresas_relacionadas')
-          .select('empresa_relacionada_id')
-          .eq('usuario_id', session.user.id);
-
-        if (relacionadasError) {
-          console.error('Error al obtener empresas relacionadas:', relacionadasError);
-          setError('Error al verificar acceso');
-          setIsChecking(false);
-          return;
-        }
-
-        // Crear un array con la empresa del usuario
+        // Usar solo la empresa asignada al usuario
         const empresasIds = userData.empresa_id ? [userData.empresa_id] : [];
         
-        // Añadir las empresas relacionadas si existen
-        if (relacionadas && relacionadas.length > 0) {
-          relacionadas.forEach((item: { empresa_relacionada_id: number }) => {
-            if (!empresasIds.includes(item.empresa_relacionada_id)) {
-              empresasIds.push(item.empresa_relacionada_id);
-            }
-          });
-        }
+        // Nota: La funcionalidad de empresas relacionadas se implementará en el futuro
+        // cuando se cree la tabla correspondiente en la base de datos
 
         console.log('Empresas permitidas:', empresasIds);
         setEmpresasPermitidas(empresasIds);
@@ -162,12 +144,11 @@ export default function ClienteRestriction({
                   <span className="font-medium">
                     {nombresEmpresas[empresaId] || `Empresa ID: ${empresaId}`}
                   </span>
-                  <Button 
-                    size="sm"
-                    onClick={() => router.push(`/reportes/afilados-por-cliente?empresa_id=${empresaId}`)}
-                  >
-                    Ver reportes
-                  </Button>
+                  <Link href={`/afilados?empresa_id=${empresaId}`}>
+                    <Button size="sm">
+                      Ver afilados
+                    </Button>
+                  </Link>
                 </div>
               ))}
             </div>
@@ -182,7 +163,7 @@ export default function ClienteRestriction({
         
         <div className="mt-6 flex justify-center">
           <Button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push(role === 'cliente' ? '/cliente' : '/dashboard')}
             variant="outline"
             className="mr-2"
           >

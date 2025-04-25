@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import SalidasBajasMasivasResumen from '@/components/dashboard/SalidasBajasMasivasResumen';
+import { useRouter } from 'next/navigation';
 
 interface StatCardProps {
   title: string;
@@ -60,9 +61,9 @@ function StatCard({ title, value, description, icon, link, loading }: StatCardPr
 }
 
 export default function DashboardPage() {
-  const { session, role, loading: authLoading } = useAuth();
-  
+  const { session, role } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     empresas: 0,
@@ -71,13 +72,21 @@ export default function DashboardPage() {
     afilados: 0
   });
 
-  
+  // Redirigir a los usuarios con rol 'cliente' a su dashboard específico
+  useEffect(() => {
+    // Solo redirigir si hay una sesión y el rol es cliente
+    if (session && role === 'cliente') {
+      console.log('Redirigiendo a panel de cliente porque el rol es:', role);
+      router.replace('/cliente');
+      return;
+    }
+  }, [session, role, router]);
+
   // Determinar los roles del usuario
   const isGerente = role === 'gerente';
   const isAdministrador = role === 'administrador';
   const isCliente = role === 'cliente';
 
-  
 
   // Función para cargar estadísticas
   const fetchStats = useCallback(async () => {
@@ -148,7 +157,7 @@ export default function DashboardPage() {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-  
+
         {(isAdministrador || isGerente) && (
           <>
             <StatCard
@@ -198,7 +207,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
-              {(isAdministrador || isGerente) && (
+              {isGerente && (
                 <>
                   <Link href="/empresas/crear">
                     <Button variant="outline" className="w-full justify-start">

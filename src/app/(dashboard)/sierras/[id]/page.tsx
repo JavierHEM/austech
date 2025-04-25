@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getSierraById } from '@/services/sierraService';
 import { SierraConRelaciones } from '@/types/sierra';
 import { supabase } from '@/lib/supabase-client';
+import SierraAfiladosHistory from '@/components/sierras/SierraAfiladosHistory';
 
 interface SierraPageProps {
   params: {
@@ -230,23 +231,7 @@ export default function SierraPage({ params }: SierraPageProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Historial de Afilados</CardTitle>
-            <CardDescription>Registro de afilados realizados a esta sierra</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Esta funcionalidad estará disponible próximamente.</p>
-              <p className="text-sm mt-2">Aquí se mostrará el historial de afilados de la sierra.</p>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button variant="outline" disabled className="w-full">
-              Ver historial completo
-            </Button>
-          </CardFooter>
-        </Card>
+        <SierraAfiladosHistory sierraId={sierraId} />
       </div>
     </div>
   );

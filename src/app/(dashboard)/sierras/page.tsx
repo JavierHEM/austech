@@ -51,7 +51,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import SierraFilters from '@/components/sierras/SierraFilters';
-import { getSierras, deleteSierra, updateEstadoSierra, SierraFilters as SierraFiltersType, SierraConRelaciones } from '@/services/sierraService';
+import { getSierras, desactivarSierra, updateEstadoSierra, activateSierra, SierraFilters as SierraFiltersType, SierraConRelaciones } from '@/services/sierraService';
 
 export default function SierrasPage() {
   const { toast } = useToast();
@@ -63,6 +63,7 @@ export default function SierrasPage() {
   const [sierraToDelete, setSierraToDelete] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [cambioEstadoLoading, setCambioEstadoLoading] = useState<number | null>(null);
+  const [activateLoading, setActivateLoading] = useState<number | null>(null);
   const pageSize = 10;
 
   // Cargar sierras
@@ -118,23 +119,25 @@ export default function SierrasPage() {
     }
   };
 
-  // Manejar eliminación de sierra
-  const handleDeleteSierra = async () => {
-    if (!sierraToDelete) return;
+  // Manejar desactivación de sierra
+  const handleDeleteSierra = async (id: number) => {
+    if (!id) return;
     
     setDeleteLoading(true);
     try {
-      await deleteSierra(sierraToDelete);
+      await desactivarSierra(id);
       toast({
-        title: 'Sierra eliminada',
-        description: 'La sierra ha sido desactivada exitosamente.'
+        title: 'Sierra desactivada',
+        description: 'La sierra ha sido marcada como fuera de servicio.'
       });
-      loadSierras(); // Recargar la lista después de eliminar
-    } catch (error) {
-      console.error('Error al eliminar sierra:', error);
+      
+      // Recargar la lista después de desactivar
+      loadSierras();
+    } catch (error: any) {
+      console.error('Error al desactivar sierra:', error);
       toast({
         title: 'Error',
-        description: 'No se pudo eliminar la sierra.',
+        description: error.message || 'No se pudo desactivar la sierra.',
         variant: 'destructive'
       });
     } finally {
@@ -143,11 +146,36 @@ export default function SierrasPage() {
     }
   };
 
+  // Manejar activación de sierra
+  const handleActivateSierra = async (sierraId: number) => {
+    setActivateLoading(sierraId);
+    try {
+      await activateSierra(sierraId);
+      toast({
+        title: 'Sierra activada',
+        description: 'La sierra ha sido activada y marcada como disponible.'
+      });
+      loadSierras(); // Recargar la lista después de activar
+    } catch (error) {
+      console.error('Error al activar sierra:', error);
+      toast({
+        title: 'Error',
+        description: 'No se pudo activar la sierra.',
+        variant: 'destructive'
+      });
+    } finally {
+      setActivateLoading(null);
+    }
+  };
+
   // Calcular el número total de páginas
   const totalPages = Math.ceil(totalCount / pageSize);
 
   // Función para obtener el color del badge según el estado
-  const getEstadoBadgeVariant = (estadoNombre: string) => {
+  const getEstadoBadgeVariant = (estadoNombre: string, activo: boolean) => {
+    if (!activo) {
+      return 'destructive' as const;
+    }
     switch (estadoNombre?.toLowerCase()) {
       case 'disponible':
         return 'success' as const;
@@ -160,6 +188,14 @@ export default function SierrasPage() {
       default:
         return 'secondary' as const;
     }
+  };
+
+  // Función para obtener el nombre del estado según la condición de la sierra
+  const getEstadoNombre = (sierra: SierraConRelaciones) => {
+    if (!sierra.activo) {
+      return 'Fuera de servicio';
+    }
+    return sierra.estado_sierra?.nombre || 'Sin estado';
   };
 
   return (
@@ -231,11 +267,9 @@ export default function SierrasPage() {
                       <TableCell>{sierra.tipo_sierra?.nombre || 'Sin tipo'}</TableCell>
                       <TableCell>{sierra.sucursal?.nombre || 'Sin sucursal'}</TableCell>
                       <TableCell>
-                        {sierra.estado_sierra && (
-                          <Badge variant={getEstadoBadgeVariant(sierra.estado_sierra.nombre)}>
-                            {sierra.estado_sierra.nombre}
-                          </Badge>
-                        )}
+                        <Badge variant={getEstadoBadgeVariant(sierra.estado_sierra?.nombre || '', sierra.activo)}>
+                          {getEstadoNombre(sierra)}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {sierra.fecha_registro ? new Date(sierra.fecha_registro).toLocaleDateString('es-ES') : 'N/A'}
@@ -310,48 +344,74 @@ export default function SierrasPage() {
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
-                          <AlertDialog>
+                          {sierra.activo ? (
+                            <AlertDialog>
+                              <TooltipProvider delayDuration={300}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <AlertDialogTrigger asChild>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="text-red-500 flex items-center gap-1"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span className="hidden sm:inline">Desactivar</span>
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="bg-black text-white px-3 py-2 rounded-md text-xs">
+                                    Desactivar sierra
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Esta acción desactivará la sierra con código "{sierra.codigo_barras}". 
+                                    Los datos se mantendrán en el sistema pero la sierra no estará disponible para su uso.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeleteSierra(sierra.id)}
+                                    disabled={deleteLoading}
+                                  >
+                                    {deleteLoading && (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    )}
+                                    Confirmar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          ) : (
                             <TooltipProvider delayDuration={300}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <AlertDialogTrigger asChild>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      className="text-red-500 flex items-center gap-1"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                      <span className="hidden sm:inline">Desactivar</span>
-                                    </Button>
-                                  </AlertDialogTrigger>
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="text-green-500 flex items-center gap-1"
+                                    onClick={() => handleActivateSierra(sierra.id)}
+                                    disabled={activateLoading === sierra.id}
+                                  >
+                                    {activateLoading === sierra.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="h-4 w-4" />
+                                    )}
+                                    <span className="hidden sm:inline">Activar</span>
+                                  </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="top" className="bg-black text-white px-3 py-2 rounded-md text-xs">
-                                  Desactivar sierra
+                                  Activar sierra
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta acción desactivará la sierra con código "{sierra.codigo_barras}". 
-                                  Los datos se mantendrán en el sistema pero la sierra no estará disponible para su uso.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => setSierraToDelete(sierra.id)}
-                                  disabled={deleteLoading && sierraToDelete === sierra.id}
-                                >
-                                  {deleteLoading && sierraToDelete === sierra.id && (
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                  )}
-                                  Confirmar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
