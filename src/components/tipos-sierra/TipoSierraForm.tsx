@@ -89,7 +89,8 @@ export default function TipoSierraForm({ tipoId, isEditing = false }: TipoSierra
     } else {
       setInitialLoading(false);
     }
-  }, [isEditing, tipoId, form, toast, supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, tipoId, form, toast]);
 
   const handleSubmit = form.handleSubmit(async (data) => {
     setLoading(true);

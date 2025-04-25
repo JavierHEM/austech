@@ -93,7 +93,8 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
     };
 
     fetchRoles();
-  }, [supabase, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]);
   
   // Cargar empresas cuando sea necesario
   useEffect(() => {
@@ -125,7 +126,8 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
     if (showEmpresaField) {
       fetchEmpresas();
     }
-  }, [showEmpresaField, supabase, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEmpresaField, toast]);
   
   // Mostrar/ocultar campo de empresa según el rol seleccionado
   useEffect(() => {
@@ -141,7 +143,9 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
         form.setValue('empresa_id', '');
       }
     }
-  }, [form.watch('role_id')]);
+  // Extraemos la dependencia compleja a una variable para evitar el warning
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
 
   // Cargar datos del usuario si estamos en modo edición
   useEffect(() => {

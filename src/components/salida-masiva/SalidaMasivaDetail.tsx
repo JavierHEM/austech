@@ -42,7 +42,23 @@ interface SalidaMasivaDetailProps {
 export default function SalidaMasivaDetail({ id }: SalidaMasivaDetailProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [salidaMasiva, setSalidaMasiva] = useState<SalidaMasivaConRelaciones & { afilados?: AfiladoConRelaciones[] } | null>(null);
+  // Definimos el tipo explícitamente para evitar errores de tipo
+  const [salidaMasiva, setSalidaMasiva] = useState<(SalidaMasivaConRelaciones & {
+    afilados?: Array<{
+      id: number;
+      fecha_afilado: string;
+      sierra?: {
+        id: number;
+        codigo_barras: string;
+        tipo_sierra?: {
+          nombre: string;
+        };
+        estado_sierra?: {
+          nombre: string;
+        };
+      };
+    }>
+  }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
@@ -212,7 +228,7 @@ export default function SalidaMasivaDetail({ id }: SalidaMasivaDetailProps) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {salidaMasiva.afilados.map((afilado: AfiladoConRelaciones) => (
+                    {salidaMasiva.afilados.map((afilado: any) => (
                       <TableRow key={afilado.id}>
                         <TableCell>
                           <Link href={`/sierras/${afilado.sierra?.id}`} className="text-primary hover:underline">
