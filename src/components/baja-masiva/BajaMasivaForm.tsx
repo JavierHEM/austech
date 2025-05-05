@@ -7,10 +7,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { CustomDatePicker } from '@/components/ui/date-picker';
 import {
   Form,
   FormControl,
@@ -20,11 +20,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -79,11 +74,16 @@ export default function BajaMasivaForm() {
       setLoading(true);
 
       // Preparar los datos para enviar
+      const fechaSeleccionada = form.getValues().fecha_baja;
+      console.log('Fecha seleccionada en el DatePicker:', fechaSeleccionada);
+      
       const bajaMasivaData: BajaMasivaInput = {
-        fecha_baja: format(new Date(), 'yyyy-MM-dd'),
+        fecha_baja: format(fechaSeleccionada, 'yyyy-MM-dd'),
         observaciones: form.getValues().observaciones || '',
         sierras_ids: scannedSierras.map(sierra => sierra.id),
       };
+      
+      console.log('Fecha formateada para enviar:', bajaMasivaData.fecha_baja);
 
       // Crear la baja masiva
       await createBajaMasiva(bajaMasivaData, session?.user?.id || '');
@@ -199,37 +199,17 @@ export default function BajaMasivaForm() {
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Fecha de Baja</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                          disabled={loading}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP", { locale: es })
-                          ) : (
-                            <span>Seleccionar fecha</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                        initialFocus
-                        locale={es}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <FormControl>
+                    <CustomDatePicker
+                      date={field.value}
+                      onDateChange={(date) => {
+                        console.log('Nueva fecha seleccionada:', date);
+                        field.onChange(date);
+                      }}
+                      placeholder="Seleccionar fecha de baja"
+                      className="w-full"
+                    />
+                  </FormControl>
                   <FormDescription>
                     Fecha en que se dan de baja las sierras
                   </FormDescription>

@@ -85,6 +85,8 @@ export const getAfilados = async (
       `)
       .order(sortField, { ascending: sortDirection === 'asc' })
       .range(from, to);
+      
+    console.log('Consultando afilados con ordenamiento por:', sortField, sortDirection);
     
     // Aplicar filtros si existen
     if (filters) {
@@ -129,8 +131,23 @@ export const getAfilados = async (
       throw new Error(error.message);
     }
     
+    // Log de las fechas recibidas para diagnóstico
+    if (data && data.length > 0) {
+      console.log('Fechas de afilado recibidas de la base de datos:');
+      data.forEach((afilado, index) => {
+        console.log(`Afilado #${index + 1} - ID: ${afilado.id}, Sierra: ${afilado.sierra_id}, Fecha afilado:`, afilado.fecha_afilado);
+      });
+    }
+    
+    // Asegurarse de que las fechas estén en formato ISO para evitar problemas de zona horaria
+    const processedData = data?.map(afilado => ({
+      ...afilado,
+      fecha_afilado: afilado.fecha_afilado ? new Date(afilado.fecha_afilado).toISOString().split('T')[0] : null,
+      fecha_salida: afilado.fecha_salida ? new Date(afilado.fecha_salida).toISOString().split('T')[0] : null
+    })) || [];
+    
     return {
-      data: data || [],
+      data: processedData,
       count: totalCount || 0
     };
   } catch (error) {
@@ -204,6 +221,18 @@ export const getAfiladoById = async (id: number, empresaId?: number): Promise<Af
       throw new Error(error.message);
     }
     
+    // Log de diagnóstico
+    console.log('Afilado obtenido por ID:', id, 'Fecha afilado:', data?.fecha_afilado);
+    
+    // Procesar fechas para evitar problemas de zona horaria
+    if (data) {
+      return {
+        ...data,
+        fecha_afilado: data.fecha_afilado ? new Date(data.fecha_afilado).toISOString().split('T')[0] : null,
+        fecha_salida: data.fecha_salida ? new Date(data.fecha_salida).toISOString().split('T')[0] : null
+      };
+    }
+    
     return data;
   } catch (error) {
     console.error('Error en getAfiladoById:', error);
@@ -231,8 +260,22 @@ export const getAfiladosBySierra = async (sierraId: number): Promise<AfiladoConR
       throw new Error(error.message);
     }
     
-    console.log('Afilados obtenidos:', data);
-    return data || [];
+    // Log de las fechas recibidas para diagnóstico
+    if (data && data.length > 0) {
+      console.log('Fechas de afilado por sierra recibidas de la base de datos:');
+      data.forEach((afilado, index) => {
+        console.log(`Afilado #${index + 1} - ID: ${afilado.id}, Fecha afilado:`, afilado.fecha_afilado);
+      });
+    }
+    
+    // Asegurarse de que las fechas estén en formato ISO para evitar problemas de zona horaria
+    const processedData = data?.map(afilado => ({
+      ...afilado,
+      fecha_afilado: afilado.fecha_afilado ? new Date(afilado.fecha_afilado).toISOString().split('T')[0] : null,
+      fecha_salida: afilado.fecha_salida ? new Date(afilado.fecha_salida).toISOString().split('T')[0] : null
+    })) || [];
+    
+    return processedData;
   } catch (error) {
     console.error('Error en getAfiladosBySierra:', error);
     throw error;
@@ -296,8 +339,17 @@ export const createAfilado = async (afilado: Omit<Afilado, 'id' | 'creado_en' | 
     
     // Crear el afilado
     console.log('Insertando nuevo afilado en la base de datos');
+    
+    // Asegurarse de que la fecha de afilado esté en formato ISO sin hora
+    const fechaAfilado = afilado.fecha_afilado 
+      ? new Date(afilado.fecha_afilado).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+      
+    console.log('Fecha de afilado formateada:', fechaAfilado);
+    
     const afiladoToInsert = {
       ...afilado,
+      fecha_afilado: fechaAfilado,
       creado_en: new Date().toISOString(),
       modificado_en: new Date().toISOString()
     };

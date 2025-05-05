@@ -66,14 +66,8 @@ export default function UsuariosPage() {
           rol_id,
           empresa_id,
           activo,
-          roles (
-            id, 
-            nombre
-          ),
-          empresas (
-            id,
-            razon_social
-          )
+          roles:rol_id (id, nombre),
+          empresas:empresa_id (id, razon_social)
         `);
       
       // Aplicar filtros adaptados a la estructura del componente UserFilters

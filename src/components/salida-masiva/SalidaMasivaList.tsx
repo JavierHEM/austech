@@ -126,7 +126,15 @@ export default function SalidaMasivaList() {
                     <TableCell>{salida.id}</TableCell>
                     <TableCell>{salida.sucursal?.nombre || 'N/A'}</TableCell>
                     <TableCell>
-                      {format(new Date(salida.fecha_salida), 'dd/MM/yyyy', { locale: es })}
+                      {(() => {
+                        // Corregir el problema de zona horaria
+                        const fechaSalida = salida.fecha_salida;
+                        // Parsear la fecha sin conversión de zona horaria
+                        const [year, month, day] = fechaSalida.split('-').map(Number);
+                        // Crear la fecha en la zona horaria local
+                        const fecha = new Date(year, month - 1, day);
+                        return format(fecha, 'dd/MM/yyyy', { locale: es });
+                      })()}
                     </TableCell>
                     <TableCell>
                       <div className="flex space-x-2">

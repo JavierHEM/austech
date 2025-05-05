@@ -5,7 +5,7 @@ const { useState, useEffect } = React;
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { CalendarIcon, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -27,8 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CustomDatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase-client';
 import { getEmpresasActivas } from '@/services/reporteService';
@@ -300,69 +299,21 @@ export default function ReporteAfiladosFilters({
           {/* Fecha desde */}
           <FormItem>
             <FormLabel htmlFor="fecha_desde">Fecha desde</FormLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "pl-3 text-left font-normal w-full",
-                    !form.watch('fecha_desde') && "text-muted-foreground"
-                  )}
-                >
-                  {form.watch('fecha_desde') ? (
-                    format(form.watch('fecha_desde') as Date, "PPP", { locale: es })
-                  ) : (
-                    <span>Seleccione una fecha</span>
-                  )}
-                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={form.watch('fecha_desde') as Date | undefined}
-                  onSelect={(date) => form.setValue('fecha_desde', date)}
-                  disabled={(date) =>
-                    date > new Date() || date < new Date("1900-01-01")
-                  }
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <CustomDatePicker
+              date={form.watch('fecha_desde') as Date | undefined}
+              onDateChange={(date) => form.setValue('fecha_desde', date)}
+              placeholder="Seleccione fecha inicial"
+            />
           </FormItem>
 
           {/* Fecha hasta */}
           <FormItem>
             <FormLabel htmlFor="fecha_hasta">Fecha hasta</FormLabel>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "pl-3 text-left font-normal w-full",
-                    !form.watch('fecha_hasta') && "text-muted-foreground"
-                  )}
-                >
-                  {form.watch('fecha_hasta') ? (
-                    format(form.watch('fecha_hasta') as Date, "PPP", { locale: es })
-                  ) : (
-                    <span>Seleccione una fecha</span>
-                  )}
-                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={form.watch('fecha_hasta') as Date | undefined}
-                  onSelect={(date) => form.setValue('fecha_hasta', date)}
-                  disabled={(date) =>
-                    date > new Date() || date < new Date("1900-01-01")
-                  }
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <CustomDatePicker
+              date={form.watch('fecha_hasta') as Date | undefined}
+              onDateChange={(date) => form.setValue('fecha_hasta', date)}
+              placeholder="Seleccione fecha final"
+            />
           </FormItem>
           
           {/* Estado activo */}

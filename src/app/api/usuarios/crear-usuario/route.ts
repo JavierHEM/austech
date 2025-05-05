@@ -1,7 +1,5 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
 
 // Crear un cliente de Supabase con credenciales de servicio
 const supabaseAdmin = createClient(
@@ -22,15 +20,14 @@ export async function POST(request: Request) {
       );
     }
     
-    // En un entorno de producción, deberíamos verificar permisos aquí
-    // Sin embargo, para resolver el problema actual, vamos a usar directamente
-    // las credenciales de servicio que tienen permisos administrativos
+    console.log('Creando usuario con datos:', { 
+      email, 
+      nombre_completo, 
+      rol_id, 
+      empresa_id: empresa_id || null 
+    });
     
-    // Nota: En una implementación de producción, se recomienda implementar
-    // verificación de roles y permisos utilizando middleware o una solución
-    // que funcione correctamente con la arquitectura de Next.js
-    
-    // Usar el cliente admin para crear el usuario
+    // Crear usuario en Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -59,21 +56,20 @@ export async function POST(request: Request) {
     // Esperar un momento para que el trigger tenga tiempo de ejecutarse
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Verificar si el usuario fue creado en la tabla usuarios
+    // Verificar si el usuario fue creado en la tabla usuarios por el trigger
     const { data: userData, error: userError } = await supabaseAdmin
       .from('usuarios')
       .select('*')
       .eq('id', authData.user.id)
       .single();
     
-    // Si hay un error, significa que el usuario no fue creado en la tabla usuarios
+    // Si el usuario no fue creado automáticamente por el trigger, lo creamos manualmente
     if (userError) {
-      console.error('Error al verificar la creación del usuario en la tabla usuarios:', userError);
+      console.log('El trigger no creó el usuario automáticamente, creando manualmente');
       
-      // Intentamos actualizar manualmente el usuario en la tabla usuarios
-      const { error: updateError } = await supabaseAdmin
+      const { error: insertError } = await supabaseAdmin
         .from('usuarios')
-        .upsert({
+        .insert({
           id: authData.user.id,
           email,
           nombre_completo,
@@ -83,12 +79,44 @@ export async function POST(request: Request) {
           creado_en: new Date().toISOString()
         });
         
-      if (updateError) {
-        console.error('Error al actualizar manualmente el usuario:', updateError);
+      if (insertError) {
+        console.error('Error al crear usuario manualmente:', insertError);
+        
+        // Intentar eliminar el usuario de Auth si falla la creación en la tabla usuarios
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        
         return NextResponse.json(
-          { error: 'Error al actualizar el usuario en la tabla usuarios' },
+          { error: 'Error al crear el usuario en la base de datos' },
           { status: 500 }
         );
+      }
+    } else {
+      // El usuario fue creado por el trigger, pero podría necesitar actualización
+      // para campos como empresa_id que no están en el trigger
+      if (userData && (empresa_id || activo === false)) {
+        console.log('Usuario creado por trigger, actualizando campos adicionales');
+        
+        const updateData: any = {};
+        
+        if (empresa_id) {
+          updateData.empresa_id = empresa_id;
+        }
+        
+        if (activo === false) {
+          updateData.activo = false;
+        }
+        
+        if (Object.keys(updateData).length > 0) {
+          const { error: updateError } = await supabaseAdmin
+            .from('usuarios')
+            .update(updateData)
+            .eq('id', authData.user.id);
+            
+          if (updateError) {
+            console.error('Error al actualizar campos adicionales:', updateError);
+            // No fallamos la operación completa por esto
+          }
+        }
       }
     }
     

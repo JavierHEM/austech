@@ -69,65 +69,82 @@ export default function ReporteAfiladosPorClientePage() {
     }
   };
 
-  // Exportar a Excel
-  const handleExportToExcel = () => {
-    if (reporteItems.length === 0) return;
-
-    // Formatear datos para Excel
-    const dataForExcel = reporteItems.map(item => ({
-      'Empresa': item.empresa,
-      'Sucursal': item.sucursal,
-      'Tipo Sierra': item.tipo_sierra,
-      'Código Sierra': item.codigo_sierra,
-      'Tipo Afilado': item.tipo_afilado,
-      'Estado Sierra': item.estado_sierra,
-      'Fecha Afilado': format(new Date(item.fecha_afilado), 'dd/MM/yyyy'),
-      'Fecha Registro': format(new Date(item.fecha_registro), 'dd/MM/yyyy'),
-      'Activo': item.activo ? 'Sí' : 'No'
-    }));
-
-    // Crear libro de Excel
-    const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Afilados por Cliente');
+  // Exportar a Excel - Genera el reporte con todos los datos según los filtros aplicados
+  const handleExportToExcel = async () => {
+    if (!filtrosAplicados) return;
     
-    // Configurar formato de celdas para las fechas (dd/mm/aaaa)
-    const dateColumns = ['G', 'H']; // Columnas de fecha (G: Fecha Afilado, H: Fecha Registro)
-    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-    
-    // Iterar sobre las columnas de fecha y aplicar formato
-    dateColumns.forEach(col => {
-      for (let row = 1; row <= range.e.r; row++) { // Empezar desde 1 para omitir la cabecera
-        const cellRef = `${col}${row + 1}`; // +1 porque las filas en XLSX empiezan en 1, pero el rango en 0
-        if (worksheet[cellRef]) {
-          // Asegurarse de que la celda se trate como texto con formato de fecha
-          worksheet[cellRef].z = 'dd/mm/yyyy';
-          // Marcar como texto para evitar conversiones automáticas
-          worksheet[cellRef].t = 's';
-        }
+    try {
+      // Mostrar indicador de carga
+      setIsLoading(true);
+      
+      // Obtener todos los datos directamente del servicio con los filtros actuales
+      // Esto asegura que exportamos TODOS los registros, no solo los que se muestran en pantalla
+      const allData = await getReporteAfiladosPorCliente(filtrosAplicados);
+      
+      if (allData.length === 0) {
+        return;
       }
-    });
+      
+      // Formatear datos para Excel
+      const dataForExcel = allData.map(item => ({
+        'Empresa': item.empresa,
+        'Sucursal': item.sucursal,
+        'Tipo Sierra': item.tipo_sierra,
+        'Código Sierra': item.codigo_sierra,
+        'Tipo Afilado': item.tipo_afilado,
+        // Se eliminó la columna 'Estado Sierra' según lo solicitado
+        'Fecha Afilado': item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+        'Fecha Registro': item.fecha_registro ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A',
+        'Activo': item.activo ? 'Sí' : 'No'
+      }));
 
-    // Ajustar anchos de columna
-    const columnWidths = [
-      { wch: 20 }, // Empresa
-      { wch: 20 }, // Sucursal
-      { wch: 15 }, // Tipo Sierra
-      { wch: 15 }, // Código Sierra
-      { wch: 15 }, // Tipo Afilado
-      { wch: 15 }, // Estado Sierra
-      { wch: 15 }, // Fecha Afilado
-      { wch: 15 }, // Fecha Registro
-      { wch: 10 }  // Activo
-    ];
-    worksheet['!cols'] = columnWidths;
+      // Crear libro de Excel
+      const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Afilados por Cliente');
+      
+      // Configurar formato de celdas para las fechas (dd/mm/aaaa)
+      const dateColumns = ['G', 'H']; // Columnas de fecha (G: Fecha Afilado, H: Fecha Registro)
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      
+      // Iterar sobre las columnas de fecha y aplicar formato
+      dateColumns.forEach(col => {
+        for (let row = 1; row <= range.e.r; row++) { // Empezar desde 1 para omitir la cabecera
+          const cellRef = `${col}${row + 1}`; // +1 porque las filas en XLSX empiezan en 1, pero el rango en 0
+          if (worksheet[cellRef]) {
+            // Asegurarse de que la celda se trate como texto con formato de fecha
+            worksheet[cellRef].z = 'dd/mm/yyyy';
+            // Marcar como texto para evitar conversiones automáticas
+            worksheet[cellRef].t = 's';
+          }
+        }
+      });
 
-    // Generar nombre de archivo con fecha
-    const fechaHoy = format(new Date(), 'dd-MM-yyyy');
-    let fileName = `Reporte_Afilados_${fechaHoy}.xlsx`;
+      // Ajustar anchos de columna
+      const columnWidths = [
+        { wch: 20 }, // Empresa
+        { wch: 20 }, // Sucursal
+        { wch: 15 }, // Tipo Sierra
+        { wch: 15 }, // Código Sierra
+        { wch: 15 }, // Tipo Afilado
+        { wch: 15 }, // Fecha Afilado
+        { wch: 15 }, // Fecha Registro
+        { wch: 10 }  // Activo
+      ];
+      worksheet['!cols'] = columnWidths;
 
-    // Guardar archivo
-    XLSX.writeFile(workbook, fileName);
+      // Generar nombre de archivo con fecha
+      const fechaHoy = format(new Date(), 'dd-MM-yyyy');
+      let fileName = `Reporte_Afilados_${fechaHoy}.xlsx`;
+
+      // Guardar archivo
+      XLSX.writeFile(workbook, fileName);
+    } catch (error: any) {
+      console.error('Error al exportar a Excel:', error);
+      setError(error.message || 'Error al exportar a Excel');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Renderizar esqueletos durante la carga
@@ -251,7 +268,7 @@ export default function ReporteAfiladosPorClientePage() {
                             <TableCell>{item.codigo_sierra}</TableCell>
                             <TableCell>{item.tipo_afilado}</TableCell>
                             <TableCell>
-                              {format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es })}
+                              {item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                             </TableCell>
                             <TableCell>
                               <Badge variant={item.activo ? "default" : "secondary"}>
@@ -305,13 +322,13 @@ export default function ReporteAfiladosPorClientePage() {
                                               <div>
                                                 <h4 className="text-sm font-medium">Fecha Afilado</h4>
                                                 <p className="text-sm">
-                                                  {format(new Date(selectedItem.fecha_afilado), 'dd/MM/yyyy', { locale: es })}
+                                                  {selectedItem.fecha_afilado ? format(new Date(selectedItem.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                                                 </p>
                                               </div>
                                               <div>
                                                 <h4 className="text-sm font-medium">Fecha Registro</h4>
                                                 <p className="text-sm">
-                                                  {format(new Date(selectedItem.fecha_registro), 'dd/MM/yyyy', { locale: es })}
+                                                  {selectedItem.fecha_registro ? format(new Date(selectedItem.fecha_registro), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                                                 </p>
                                               </div>
                                               <div>

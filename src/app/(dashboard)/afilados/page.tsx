@@ -433,10 +433,26 @@ export default function AfiladosPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center">
+                        <div className="flex items-center" data-component-name="AfiladosPage">
                           <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
                           {afilado.fecha_afilado 
-                            ? format(new Date(afilado.fecha_afilado), 'dd/MM/yyyy', { locale: es })
+                            ? (() => {
+                                // Asegurarse de que la fecha se procese correctamente
+                                try {
+                                  // Convertir la fecha a objeto Date y formatearla
+                                  const fechaObj = new Date(afilado.fecha_afilado);
+                                  // Verificar si la fecha es válida
+                                  if (isNaN(fechaObj.getTime())) {
+                                    console.error('Fecha inválida:', afilado.fecha_afilado);
+                                    return afilado.fecha_afilado || 'Fecha inválida';
+                                  }
+                                  return format(fechaObj, 'dd/MM/yyyy', { locale: es });
+                                } catch (error) {
+                                  console.error('Error al formatear fecha:', error);
+                                  // Mostrar la fecha sin formato en caso de error
+                                  return afilado.fecha_afilado || 'Error de formato';
+                                }
+                              })()
                             : 'Sin fecha'
                           }
                         </div>

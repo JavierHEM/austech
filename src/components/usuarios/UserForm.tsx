@@ -132,20 +132,56 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
   // Mostrar/ocultar campo de empresa según el rol seleccionado
   useEffect(() => {
     const selectedRoleId = form.watch('role_id');
+    console.log('Rol seleccionado:', selectedRoleId);
+    
     if (selectedRoleId) {
       const roleId = parseInt(selectedRoleId);
+      console.log('Rol ID como número:', roleId);
+      
       // Asumiendo que el rol con ID 3 es 'Cliente' según tu trigger
       const isClientRole = roleId === 3;
+      console.log('¿Es rol de cliente?:', isClientRole);
+      
       setShowEmpresaField(isClientRole);
       
       // Si no es cliente, limpiar el campo empresa_id
       if (!isClientRole) {
         form.setValue('empresa_id', '');
+      } else {
+        // Si es cliente, cargar las empresas si aún no se han cargado
+        if (empresas.length === 0 && !loadingEmpresas) {
+          const fetchEmpresas = async () => {
+            setLoadingEmpresas(true);
+            try {
+              const { data, error } = await supabase
+                .from('empresas')
+                .select('id, razon_social')
+                .eq('activo', true)
+                .order('razon_social');
+      
+              if (error) throw error;
+
+              console.log('Empresas cargadas:', data);
+              setEmpresas(data || []);
+              setLoadingEmpresas(false);
+            } catch (error) {
+              console.error('Error al cargar empresas:', error);
+              toast({
+                title: 'Error',
+                description: 'No se pudieron cargar las empresas.',
+                variant: 'destructive',
+              });
+              setLoadingEmpresas(false);
+            }
+          };
+          
+          fetchEmpresas();
+        }
       }
     }
   // Extraemos la dependencia compleja a una variable para evitar el warning
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form]);
+  }, [form.watch('role_id')]);
 
   // Cargar datos del usuario si estamos en modo edición
   useEffect(() => {

@@ -125,7 +125,15 @@ export default function BajaMasivaList() {
                   <TableRow key={baja.id}>
                     <TableCell>{baja.id}</TableCell>
                     <TableCell>
-                      {format(new Date(baja.fecha_baja), 'dd/MM/yyyy', { locale: es })}
+                      {(() => {
+                        // Corregir el problema de zona horaria
+                        const fechaBaja = baja.fecha_baja;
+                        // Parsear la fecha sin conversión de zona horaria
+                        const [year, month, day] = fechaBaja.split('-').map(Number);
+                        // Crear la fecha en la zona horaria local
+                        const fecha = new Date(year, month - 1, day);
+                        return format(fecha, 'dd/MM/yyyy', { locale: es });
+                      })()}
                     </TableCell>
                     <TableCell>
                       {baja.observaciones ? 
