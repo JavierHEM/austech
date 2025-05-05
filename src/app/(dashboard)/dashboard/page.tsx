@@ -276,7 +276,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-between items-center pb-2 border-b">
               <div className="font-medium">Versión del sistema</div>
-              <div className="text-sm">1.2.0</div>
+              <div className="text-sm">2.0</div>
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center pb-2 border-b">

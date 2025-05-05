@@ -373,109 +373,135 @@ export default function ClientePage() {
 
   // Función para dibujar el gráfico circular
   const drawPieChart = () => {
+    // Verificar que chartRef.current exista y que el componente esté montado
     if (!chartRef.current) {
-      console.error('chartRef.current no existe');
+      console.log('chartRef.current no disponible aún, se intentará más tarde');
       return;
     }
     
-    console.log('Dibujando gráfico circular...', chartRef.current);
-
-    const pieChartData = {
-      labels: ['Activas', 'Inactivas'],
-      datasets: [
-        {
-          data: [stats.sierrasActivas, stats.sierrasInactivas || 0],
-          backgroundColor: ['#10b981', '#f43f5e'],
-          borderWidth: 0,
-        },
-      ],
-    };
-
-    const activas = stats.sierrasActivas;
-    const inactivas = stats.sierrasInactivas || 0;
-    const total = activas + inactivas;
-    
-    if (total === 0) return;
-
-    const activasPct = Math.round((activas / total) * 100);
-    const inactivasPct = 100 - activasPct;
-
-    // Limpiar el contenedor antes de dibujar
-    while (chartRef.current.firstChild) {
-      chartRef.current.removeChild(chartRef.current.firstChild);
-    }
-    
-    // Crear el SVG para el gráfico
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('height', '100%');
-    svg.setAttribute('viewBox', '-1 -1 2 2');
-    svg.style.transform = 'rotate(-90deg)';
-    
-    // Calcular los ángulos para el gráfico
-    const activasRatio = activas / total || 0;
-    const inactivasRatio = inactivas / total || 0;
-    
-    // Crear los segmentos del gráfico
-    if (total > 0) {
-      // Segmento para sierras activas
-      const activasPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const activasStartAngle = 0;
-      const activasEndAngle = activasRatio * Math.PI * 2;
+    try {
+      console.log('Dibujando gráfico circular...');
+  
+      const pieChartData = {
+        labels: ['Activas', 'Inactivas'],
+        datasets: [
+          {
+            data: [stats.sierrasActivas, stats.sierrasInactivas || 0],
+            backgroundColor: ['#10b981', '#f43f5e'],
+            borderWidth: 0,
+          },
+        ],
+      };
+  
+      const activas = stats.sierrasActivas;
+      const inactivas = stats.sierrasInactivas || 0;
+      const total = activas + inactivas;
       
-      const activasX1 = Math.cos(activasStartAngle);
-      const activasY1 = Math.sin(activasStartAngle);
-      const activasX2 = Math.cos(activasEndAngle);
-      const activasY2 = Math.sin(activasEndAngle);
+      if (total === 0) return;
+  
+      const activasPct = Math.round((activas / total) * 100);
+      const inactivasPct = 100 - activasPct;
+  
+      // Limpiar el contenedor antes de dibujar (con verificación de seguridad)
+      if (chartRef.current && chartRef.current.firstChild) {
+        while (chartRef.current.firstChild) {
+          chartRef.current.removeChild(chartRef.current.firstChild);
+        }
+      }
       
-      const activasLargeArcFlag = activasRatio > 0.5 ? 1 : 0;
+      // Crear el SVG para el gráfico
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '100%');
+      svg.setAttribute('height', '100%');
+      svg.setAttribute('viewBox', '-1 -1 2 2');
+      svg.style.transform = 'rotate(-90deg)';
       
-      const activasPathData = `
-        M 0 0
-        L ${activasX1} ${activasY1}
-        A 1 1 0 ${activasLargeArcFlag} 1 ${activasX2} ${activasY2}
-        Z
-      `;
+      // Calcular los ángulos para el gráfico
+      const activasRatio = activas / total || 0;
+      const inactivasRatio = inactivas / total || 0;
       
-      activasPath.setAttribute('d', activasPathData);
-      activasPath.setAttribute('fill', '#10b981'); // Verde para activas
-      svg.appendChild(activasPath);
-      
-      // Segmento para sierras inactivas
-      if (inactivasRatio > 0) {
-        const inactivasPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const inactivasStartAngle = activasEndAngle;
-        const inactivasEndAngle = Math.PI * 2;
+      // Crear los segmentos del gráfico
+      if (total > 0) {
+        // Segmento para sierras activas
+        const activasPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const activasStartAngle = 0;
+        const activasEndAngle = activasRatio * Math.PI * 2;
         
-        const inactivasX1 = Math.cos(inactivasStartAngle);
-        const inactivasY1 = Math.sin(inactivasStartAngle);
-        const inactivasX2 = Math.cos(inactivasEndAngle);
-        const inactivasY2 = Math.sin(inactivasEndAngle);
+        const activasX1 = Math.cos(activasStartAngle);
+        const activasY1 = Math.sin(activasStartAngle);
+        const activasX2 = Math.cos(activasEndAngle);
+        const activasY2 = Math.sin(activasEndAngle);
         
-        const inactivasLargeArcFlag = inactivasRatio > 0.5 ? 1 : 0;
+        const activasLargeArcFlag = activasRatio > 0.5 ? 1 : 0;
         
-        const inactivasPathData = `
+        const activasPathData = `
           M 0 0
-          L ${inactivasX1} ${inactivasY1}
-          A 1 1 0 ${inactivasLargeArcFlag} 1 ${inactivasX2} ${inactivasY2}
+          L ${activasX1} ${activasY1}
+          A 1 1 0 ${activasLargeArcFlag} 1 ${activasX2} ${activasY2}
           Z
         `;
         
-        inactivasPath.setAttribute('d', inactivasPathData);
-        inactivasPath.setAttribute('fill', '#f43f5e'); // Rojo para inactivas
-        svg.appendChild(inactivasPath);
+        activasPath.setAttribute('d', activasPathData);
+        activasPath.setAttribute('fill', '#10b981'); // Verde para activas
+        svg.appendChild(activasPath);
+        
+        // Segmento para sierras inactivas
+        if (inactivasRatio > 0) {
+          const inactivasPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          const inactivasStartAngle = activasEndAngle;
+          const inactivasEndAngle = Math.PI * 2;
+          
+          const inactivasX1 = Math.cos(inactivasStartAngle);
+          const inactivasY1 = Math.sin(inactivasStartAngle);
+          const inactivasX2 = Math.cos(inactivasEndAngle);
+          const inactivasY2 = Math.sin(inactivasEndAngle);
+          
+          const inactivasLargeArcFlag = inactivasRatio > 0.5 ? 1 : 0;
+          
+          const inactivasPathData = `
+            M 0 0
+            L ${inactivasX1} ${inactivasY1}
+            A 1 1 0 ${inactivasLargeArcFlag} 1 ${inactivasX2} ${inactivasY2}
+            Z
+          `;
+          
+          inactivasPath.setAttribute('d', inactivasPathData);
+          inactivasPath.setAttribute('fill', '#f43f5e'); // Rojo para inactivas
+          svg.appendChild(inactivasPath);
+        }
+      } else {
+        // Si no hay datos, mostrar un círculo gris
+        const emptyCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        emptyCircle.setAttribute('cx', '0');
+        emptyCircle.setAttribute('cy', '0');
+        emptyCircle.setAttribute('r', '1');
+        emptyCircle.setAttribute('fill', '#e5e7eb'); // Gris claro
+        svg.appendChild(emptyCircle);
       }
-    } else {
-      // Si no hay datos, mostrar un círculo gris
-      const emptyCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      emptyCircle.setAttribute('cx', '0');
-      emptyCircle.setAttribute('cy', '0');
-      emptyCircle.setAttribute('r', '1');
-      emptyCircle.setAttribute('fill', '#e5e7eb'); // Gris claro
-      svg.appendChild(emptyCircle);
+      
+      if (chartRef.current) {
+        chartRef.current.appendChild(svg);
+      }
+    } catch (error) {
+      console.error('Error al dibujar el gráfico circular:', error);
+      // Si hay error, intentar mostrar un gráfico simple como fallback
+      try {
+        if (chartRef.current) {
+          // Limpiar el contenedor
+          while (chartRef.current.firstChild) {
+            chartRef.current.removeChild(chartRef.current.firstChild);
+          }
+          
+          // Crear un elemento de texto simple
+          const fallbackText = document.createElement('div');
+          fallbackText.textContent = `Activas: ${stats.sierrasActivas}, Inactivas: ${stats.sierrasInactivas || 0}`;
+          fallbackText.className = 'text-center text-sm text-muted-foreground mt-4';
+          chartRef.current.appendChild(fallbackText);
+        }
+      } catch (fallbackError) {
+        console.error('Error al mostrar gráfico de fallback:', fallbackError);
+      }
     }
-    
-    chartRef.current.appendChild(svg);
   };
 
   // Manejar la aplicación de filtros para el reporte (versión real)
