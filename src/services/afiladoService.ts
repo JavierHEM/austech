@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase-client';
-import { Afilado, AfiladoFilters, PaginatedAfilados } from '@/types/afilado';
+import { Afilado, AfiladoFilters, PaginatedAfilados, AfiladoConRelaciones } from '@/types/afilado';
 import { format } from 'date-fns';
 
 /**
@@ -172,7 +172,7 @@ export const getAfilados = async (
 /**
  * Obtiene un afilado por su ID
  */
-export const getAfiladoById = async (id: number): Promise<Afilado | null> => {
+export const getAfiladoById = async (id: number): Promise<AfiladoConRelaciones | null> => {
   try {
     const { data, error } = await supabase
       .from('afilados')
@@ -199,7 +199,17 @@ export const getAfiladoById = async (id: number): Promise<Afilado | null> => {
       ...data,
       // Corregir el problema de zona horaria para las fechas
       fecha_afilado: data.fecha_afilado,
-      fecha_salida: data.fecha_salida
+      fecha_salida: data.fecha_salida,
+      // Asegurarse de que tipo_afilado sea un objeto con la estructura correcta
+      tipo_afilado: data.tipo_afilado || { 
+        id: data.tipo_afilado_id, 
+        nombre: 'Desconocido',
+        descripcion: '',
+        creado_en: '',
+        modificado_en: ''
+      },
+      // Agregar la propiedad urgente que requiere AfiladoConRelaciones
+      urgente: data.observaciones?.toLowerCase().includes('urgente') || false
     };
   } catch (error) {
     console.error('Error en getAfiladoById:', error);
@@ -210,7 +220,7 @@ export const getAfiladoById = async (id: number): Promise<Afilado | null> => {
 /**
  * Obtiene los afilados de una sierra específica
  */
-export const getAfiladosBySierra = async (sierraId: number): Promise<Afilado[]> => {
+export const getAfiladosBySierra = async (sierraId: number): Promise<AfiladoConRelaciones[]> => {
   try {
     const { data, error } = await supabase
       .from('afilados')
@@ -235,12 +245,22 @@ export const getAfiladosBySierra = async (sierraId: number): Promise<Afilado[]> 
       });
     }
     
-    // Asegurarse de que las fechas estén en formato ISO para evitar problemas de zona horaria
+    // Transformar los datos al tipo AfiladoConRelaciones
     return data?.map(afilado => ({
       ...afilado,
       // Corregir el problema de zona horaria para las fechas
       fecha_afilado: afilado.fecha_afilado,
-      fecha_salida: afilado.fecha_salida
+      fecha_salida: afilado.fecha_salida,
+      // Asegurarse de que tipo_afilado sea un objeto con la estructura correcta
+      tipo_afilado: afilado.tipo_afilado || { 
+        id: afilado.tipo_afilado_id, 
+        nombre: 'Desconocido',
+        descripcion: '',
+        creado_en: '',
+        modificado_en: ''
+      },
+      // Agregar la propiedad urgente que requiere AfiladoConRelaciones
+      urgente: afilado.observaciones?.toLowerCase().includes('urgente') || false
     })) || [];
   } catch (error) {
     console.error('Error en getAfiladosBySierra:', error);
@@ -249,9 +269,9 @@ export const getAfiladosBySierra = async (sierraId: number): Promise<Afilado[]> 
 };
 
 /**
- * Completa un afilado (cambia el estado de la sierra a "Lista para retiro")
+ * Completa un afilado (cambia el estado de la sierra a "Lista para retiro" y actualiza fecha de salida y observaciones)
  */
-export const completarAfilado = async (afiladoId: number): Promise<boolean> => {
+export const completarAfilado = async (afiladoId: number, fecha_salida?: string, observaciones?: string): Promise<boolean> => {
   try {
     // Primero obtenemos el afilado para verificar la sierra
     const { data: afilado, error: afiladoError } = await supabase
@@ -267,6 +287,23 @@ export const completarAfilado = async (afiladoId: number): Promise<boolean> => {
     
     if (!afilado) {
       throw new Error(`No se encontró el afilado con ID ${afiladoId}`);
+    }
+    
+    // Actualizar el afilado con la fecha de salida y observaciones si se proporcionan
+    if (fecha_salida || observaciones) {
+      const updateData: any = {};
+      if (fecha_salida) updateData.fecha_salida = fecha_salida;
+      if (observaciones) updateData.observaciones = observaciones;
+      
+      const { error: afiladoUpdateError } = await supabase
+        .from('afilados')
+        .update(updateData)
+        .eq('id', afiladoId);
+      
+      if (afiladoUpdateError) {
+        console.error('Error al actualizar afilado:', afiladoUpdateError);
+        throw new Error(afiladoUpdateError.message);
+      }
     }
     
     // Actualizar el estado de la sierra a "Lista para retiro" (estado_id = 3)
@@ -329,6 +366,43 @@ export const createAfilado = async (afilado: Partial<Afilado>): Promise<Afilado>
     return data;
   } catch (error) {
     console.error('Error en createAfilado:', error);
+    throw error;
+  }
+};
+
+/**
+ * Actualiza un afilado existente
+ */
+export const updateAfilado = async (id: number, afilado: Partial<Afilado>): Promise<Afilado> => {
+  try {
+    // Formatear la fecha para evitar problemas con la zona horaria
+    const fechaAfilado = afilado.fecha_afilado 
+      ? afilado.fecha_afilado
+      : undefined;
+    
+    // Actualizar el afilado
+    const { data, error } = await supabase
+      .from('afilados')
+      .update({
+        sierra_id: afilado.sierra_id,
+        tipo_afilado_id: afilado.tipo_afilado_id,
+        fecha_afilado: fechaAfilado,
+        fecha_salida: afilado.fecha_salida,
+        observaciones: afilado.observaciones || null,
+        modificado_en: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error al actualizar afilado:', error);
+      throw new Error(error.message);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error en updateAfilado:', error);
     throw error;
   }
 };

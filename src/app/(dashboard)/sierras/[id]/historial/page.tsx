@@ -23,7 +23,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getAfiladosBySierra } from '@/services/afiladoService';
 import { getSierraById } from '@/services/sierraService';
-import type { AfiladoConRelaciones } from '@/types/afilado';
+import type { Afilado, AfiladoConRelaciones } from '@/types/afilado';
 import type { SierraConRelaciones } from '@/types/sierra';
 import {
   Table,
