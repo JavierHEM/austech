@@ -1,6 +1,19 @@
 // src/services/reporteService.ts
 import { supabase } from '@/lib/supabase-client';
 import { Empresa } from '@/types/empresa';
+import { format } from 'date-fns';
+
+// Función auxiliar para formatear fechas sin la parte de tiempo
+const formatDateWithoutTime = (dateString: string): string => {
+  try {
+    // Extraer solo la parte de fecha (YYYY-MM-DD) sin convertir a objeto Date
+    // para evitar problemas con zonas horarias
+    return dateString.split('T')[0];
+  } catch (error) {
+    console.error('Error al formatear fecha:', error, dateString);
+    return dateString; // Devolver la fecha original si hay error
+  }
+};
 
 // Definir interfaces para los tipos de datos de Supabase
 interface Sierra {
@@ -33,6 +46,7 @@ interface AfiladoData {
   sierra_id: number;
   tipo_afilado_id: number;
   usuario_id: string;
+  estado: boolean;
   sierras: Sierra;
   tipos_afilado: TipoAfilado | { id: number; nombre: string }[];
 }
@@ -46,6 +60,7 @@ export interface ReporteAfiladosPorClienteFilters {
   fecha_desde: string | null;
   fecha_hasta: string | null;
   activo?: boolean;
+  estado_afilado?: boolean;
 }
 
 // Interfaz para un ítem de reporte
@@ -60,8 +75,10 @@ export interface ReporteAfiladoItem {
   codigo_sierra: string;
   tipo_afilado: string;
   tipo_afilado_id: number;
-  estado_sierra: string;
+  estado_sierra: string; // Mantenemos este campo para compatibilidad
   fecha_afilado: string | null;
+  fecha_salida: string | null; // Fecha de salida del afilado
+  estado_afilado: string; // Estado del afilado (Activo/Inactivo)
   fecha_registro: string | null;
   activo: boolean;
 }
@@ -109,6 +126,7 @@ export const getReporteAfiladosPorCliente = async (
         sierra_id,
         tipo_afilado_id,
         usuario_id,
+        estado,
         sierras!inner(
           id,
           codigo_barras,
@@ -128,10 +146,8 @@ export const getReporteAfiladosPorCliente = async (
     // Filtrar por empresa_id
     query = query.eq('sierras.sucursales.empresa_id', filters.empresa_id);
     
-    // Aplicar filtro por activo si se especifica
-    if (typeof filters.activo === 'boolean') {
-      query = query.eq('sierras.activo', filters.activo);
-    }
+    // El filtro 'activo' se eliminó por ser redundante
+    // Ahora solo usamos 'estado_afilado' para filtrar por el estado del afilado
     
     // Aplicar filtro por sucursal si se especifica
     if (filters.sucursal_id) {
@@ -190,6 +206,12 @@ export const getReporteAfiladosPorCliente = async (
       const fechaHastaStr = fechaHasta.toISOString().split('T')[0];
       console.log('Filtrando por fecha hasta:', fechaHastaStr);
       query = query.lte('fecha_afilado', fechaHastaStr);
+    }
+    
+    // Aplicar filtro por estado del afilado si está definido
+    if (typeof filters.estado_afilado === 'boolean') {
+      console.log('Filtrando por estado del afilado:', filters.estado_afilado);
+      query = query.eq('estado', filters.estado_afilado);
     }
     
     // Ejecutar la consulta
@@ -371,14 +393,10 @@ export const getReporteAfiladosPorCliente = async (
             continue;
           }
           
-          // Normalizar fechas a formato ISO (YYYY-MM-DD)
-          const fechaAfilado = item.fecha_afilado 
-            ? new Date(item.fecha_afilado).toISOString().split('T')[0] 
-            : null;
-            
-          const fechaRegistro = (sierra.fecha_registro || item.creado_en)
-            ? new Date(sierra.fecha_registro || item.creado_en).toISOString().split('T')[0]
-            : null;
+          // Formatear fechas para mostrar solo la parte de fecha
+          const fechaAfilado = item.fecha_afilado ? formatDateWithoutTime(item.fecha_afilado) : null;
+          const fechaSalida = item.fecha_salida ? formatDateWithoutTime(item.fecha_salida) : null;
+          const fechaRegistro = sierra.fecha_registro ? formatDateWithoutTime(sierra.fecha_registro) : null;
           
           // Obtener nombres de empresas, sucursales, etc.
           let empresaNombre = 'Desconocida';
@@ -403,6 +421,22 @@ export const getReporteAfiladosPorCliente = async (
                                  
           const tipoAfiladoNombre = tipoAfilado.nombre || 'Desconocido';
           
+          // Usar directamente el valor del campo estado de la tabla afilados
+          // El campo estado es de tipo booleano (TRUE/FALSE)
+          let estadoAfilado = '';
+          
+          // Simplificar la lógica para manejar el campo estado
+          // En PostgreSQL, los booleanos pueden venir como true/false o como strings 't'/'f'
+          if (item.estado === true || item.estado === 't') {
+            estadoAfilado = 'Activo';
+          } else if (item.estado === false || item.estado === 'f') {
+            estadoAfilado = 'Inactivo';
+          } else {
+            // Fallback por si el campo no está disponible
+            estadoAfilado = 'Desconocido';
+          }
+          
+          // Mantener el estado de la sierra para compatibilidad
           let estadoSierraNombre = 'Desconocido';
           if (sierra.estados_sierra) {
             if (Array.isArray(sierra.estados_sierra) && sierra.estados_sierra.length > 0) {
@@ -426,6 +460,8 @@ export const getReporteAfiladosPorCliente = async (
             tipo_afilado_id: item.tipo_afilado_id,
             estado_sierra: estadoSierraNombre,
             fecha_afilado: fechaAfilado,
+            fecha_salida: fechaSalida,
+            estado_afilado: estadoAfilado,
             fecha_registro: fechaRegistro,
             activo: sierra.activo
           });

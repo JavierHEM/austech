@@ -24,7 +24,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-// Importa useToast desde la ubicación correcta - actualízala según lo que encuentres
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
@@ -181,7 +180,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
     }
   // Extraemos la dependencia compleja a una variable para evitar el warning
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch('role_id')]);
+  }, [form.watch('role_id'), empresas.length, loadingEmpresas, toast]);
 
   // Cargar datos del usuario si estamos en modo edición
   useEffect(() => {
@@ -293,20 +292,41 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
           return;
         }
 
+        // Preparar los datos para enviar a la API
+        const clientData: any = {
+          email: data.email,
+          password: data.password,
+          nombre_completo: data.nombre,
+          rol_id: parseInt(data.role_id),
+          activo: data.activo
+        };
+        
+        // Asignar empresa_id para usuarios de tipo cliente (rol_id = 3)
+        if (parseInt(data.role_id) === 3) {
+          if (data.empresa_id) {
+            clientData.empresa_id = parseInt(data.empresa_id);
+            console.log('Enviando empresa_id:', clientData.empresa_id, 'para usuario cliente');
+          } else {
+            console.error('Error: Se requiere empresa_id para usuarios cliente');
+            toast({
+              title: 'Error',
+              description: 'Debe seleccionar una empresa para usuarios con rol Cliente',
+              variant: 'destructive'
+            });
+            setLoading(false);
+            return;
+          }
+        } else {
+          clientData.empresa_id = null;
+        }
+        
         // Crear nuevo usuario a través de nuestra API para evitar cerrar la sesión actual
         const response = await fetch('/api/usuarios/crear', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            email: data.email,
-            password: data.password,
-            nombre_completo: data.nombre,
-            rol_id: parseInt(data.role_id),
-            empresa_id: parseInt(data.role_id) === 3 && data.empresa_id ? parseInt(data.empresa_id) : null,
-            activo: data.activo
-          }),
+          body: JSON.stringify(clientData),
         });
         
         const responseData = await response.json();
@@ -340,6 +360,63 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
     }
   };
 
+  // Validar formulario antes de enviar
+  const validateAndSubmit = () => {
+    // Validar campos obligatorios
+    let hasErrors = false;
+    
+    if (!form.watch('nombre')) {
+      form.setError('nombre', {
+        type: 'required',
+        message: 'El nombre es requerido'
+      });
+      hasErrors = true;
+    }
+    
+    if (!form.watch('email')) {
+      form.setError('email', {
+        type: 'required',
+        message: 'El email es requerido'
+      });
+      hasErrors = true;
+    } else if (!/^\S+@\S+\.\S+$/.test(form.watch('email'))) {
+      form.setError('email', {
+        type: 'pattern',
+        message: 'Ingrese un email válido'
+      });
+      hasErrors = true;
+    }
+    
+    if (!isEditing && !form.watch('password')) {
+      form.setError('password', {
+        type: 'required',
+        message: 'La contraseña es requerida'
+      });
+      hasErrors = true;
+    }
+    
+    if (!form.watch('role_id')) {
+      form.setError('role_id', {
+        type: 'required',
+        message: 'El rol es requerido'
+      });
+      hasErrors = true;
+    }
+    
+    // Validar que se seleccione una empresa cuando el rol es cliente (rol_id = 3)
+    if (parseInt(form.watch('role_id')) === 3 && !form.watch('empresa_id')) {
+      form.setError('empresa_id', {
+        type: 'required',
+        message: 'La empresa es requerida para usuarios de tipo cliente'
+      });
+      hasErrors = true;
+    }
+    
+    if (!hasErrors) {
+      onSubmit(form.getValues() as UserFormData);
+    }
+  };
+
   if (initialLoading || loadingRoles) {
     return (
       <div className="flex justify-center items-center h-[50vh]">
@@ -347,64 +424,6 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
       </div>
     );
   }
-
-  // Validar formulario antes de enviar
-  const validateAndSubmit = () => {
-    const nombre = form.getValues('nombre');
-    const email = form.getValues('email');
-    const role_id = form.getValues('role_id');
-    const empresa_id = form.getValues('empresa_id');
-    
-    let isValid = true;
-    
-    if (!nombre || nombre.length < 3) {
-      form.setError('nombre', { 
-        type: 'manual', 
-        message: 'El nombre debe tener al menos 3 caracteres' 
-      });
-      isValid = false;
-    }
-    
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      form.setError('email', { 
-        type: 'manual', 
-        message: 'Ingrese un correo electrónico válido' 
-      });
-      isValid = false;
-    }
-    
-    if (!role_id) {
-      form.setError('role_id', { 
-        type: 'manual', 
-        message: 'Debe seleccionar un rol' 
-      });
-      isValid = false;
-    }
-    
-    // Validar empresa_id si el rol es cliente (ID 3)
-    if (role_id === '3' && !empresa_id) {
-      form.setError('empresa_id', { 
-        type: 'manual', 
-        message: 'Debe seleccionar una empresa para usuarios con rol Cliente' 
-      });
-      isValid = false;
-    }
-    
-    if (!isEditing) {
-      const password = form.getValues('password');
-      if (!password || password.length < 6) {
-        form.setError('password', { 
-          type: 'manual', 
-          message: 'La contraseña debe tener al menos 6 caracteres' 
-        });
-        isValid = false;
-      }
-    }
-    
-    if (isValid) {
-      onSubmit(form.getValues());
-    }
-  };
 
   return (
     <Card className="w-full">
@@ -418,7 +437,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
               <FormLabel>Nombre</FormLabel>
               <FormControl>
                 <Input 
-                  placeholder="Ingrese el nombre completo" 
+                  placeholder="Nombre completo" 
                   {...form.register('nombre')}
                 />
               </FormControl>
@@ -434,7 +453,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
               <FormControl>
                 <Input 
                   type="email" 
-                  placeholder="correo@ejemplo.cl" 
+                  placeholder="correo@ejemplo.com" 
                   {...form.register('email')}
                 />
               </FormControl>
@@ -497,7 +516,9 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
 
         {showEmpresaField && (
           <FormItem>
-            <FormLabel>Empresa</FormLabel>
+            <FormLabel>
+              Empresa <span className="text-destructive">*</span>
+            </FormLabel>
             <Select 
               value={form.watch('empresa_id')} 
               onValueChange={(value) => form.setValue('empresa_id', value)}
@@ -524,6 +545,9 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
                 {form.formState.errors.empresa_id.message}
               </p>
             )}
+            <p className="text-xs text-muted-foreground">
+              Requerido para usuarios de tipo cliente
+            </p>
           </FormItem>
         )}
 

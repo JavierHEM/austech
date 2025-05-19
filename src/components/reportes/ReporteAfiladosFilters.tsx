@@ -45,7 +45,7 @@ const formSchema = z.object({
   tipo_afilado_id: z.string().optional(),
   fecha_desde: z.date().optional(),
   fecha_hasta: z.date().optional(),
-  activo: z.boolean().optional(),
+  estado_afilado: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -80,7 +80,7 @@ export default function ReporteAfiladosFilters({
       tipo_afilado_id: '',
       fecha_desde: undefined,
       fecha_hasta: undefined,
-      activo: undefined, // undefined significa que no se aplica filtro
+      estado_afilado: undefined, // undefined significa que no se aplica filtro para el estado del afilado
     },
     shouldUnregister: false,
   });
@@ -180,16 +180,15 @@ export default function ReporteAfiladosFilters({
 
   // Manejar envío del formulario
   const onSubmit = (values: FormValues) => {
+    // Convertir los valores del formulario al formato esperado por el servicio
     const filters: ReporteAfiladosPorClienteFilters = {
-      empresa_id: parseInt(values.empresa_id),
-      sucursal_id: values.sucursal_id && values.sucursal_id !== "all_sucursales" ? parseInt(values.sucursal_id) : null,
-      tipo_sierra_id: values.tipo_sierra_id && values.tipo_sierra_id !== "all_tipos" ? parseInt(values.tipo_sierra_id) : null,
-      tipo_afilado_id: values.tipo_afilado_id && values.tipo_afilado_id !== "all_tipos" ? parseInt(values.tipo_afilado_id) : null,
+      empresa_id: values.empresa_id ? parseInt(values.empresa_id) : 0, // Valor por defecto para evitar error de tipo
+      sucursal_id: values.sucursal_id && values.sucursal_id !== 'all_sucursales' ? parseInt(values.sucursal_id) : null,
+      tipo_sierra_id: values.tipo_sierra_id && values.tipo_sierra_id !== 'all_tipos' ? parseInt(values.tipo_sierra_id) : null,
+      tipo_afilado_id: values.tipo_afilado_id && values.tipo_afilado_id !== 'all_tipos' ? parseInt(values.tipo_afilado_id) : null,
       fecha_desde: values.fecha_desde ? format(values.fecha_desde, 'yyyy-MM-dd') : null,
       fecha_hasta: values.fecha_hasta ? format(values.fecha_hasta, 'yyyy-MM-dd') : null,
-      // Solo enviamos el valor de activo si es un booleano definido
-      // para evitar errores con PostgreSQL que no acepta null para columnas booleanas
-      ...(typeof values.activo === 'boolean' ? { activo: values.activo } : {}),
+      estado_afilado: values.estado_afilado,
     };
     
     onFilter(filters);
@@ -316,22 +315,24 @@ export default function ReporteAfiladosFilters({
             />
           </FormItem>
           
-          {/* Estado activo */}
+          {/* El filtro de Sierra Activa se eliminó por ser redundante */}
+          
+          {/* Estado del afilado */}
           <FormItem>
-            <FormLabel htmlFor="activo">Estado</FormLabel>
+            <FormLabel htmlFor="estado_afilado">Estado</FormLabel>
             <Select 
               disabled={isLoading} 
               onValueChange={(value) => {
                 if (value === "todos") {
-                  form.setValue('activo', undefined);
+                  form.setValue('estado_afilado', undefined);
                 } else {
-                  form.setValue('activo', value === "true");
+                  form.setValue('estado_afilado', value === "true");
                 }
               }} 
               value={
-                form.watch('activo') === undefined
+                form.watch('estado_afilado') === undefined
                   ? "todos"
-                  : form.watch('activo') === true
+                  : form.watch('estado_afilado') === true
                   ? "true"
                   : "false"
               }
@@ -341,8 +342,8 @@ export default function ReporteAfiladosFilters({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos los estados</SelectItem>
-                <SelectItem value="true">Activas</SelectItem>
-                <SelectItem value="false">Inactivas</SelectItem>
+                <SelectItem value="true">Activos</SelectItem>
+                <SelectItem value="false">Inactivos</SelectItem>
               </SelectContent>
             </Select>
           </FormItem>

@@ -131,26 +131,19 @@ export const createUsuario = async (usuario: UsuarioFormValues & { id?: string }
 /**
  * Actualiza un usuario existente
  */
-export const updateUsuario = async (id: string, usuario: Partial<UsuarioFormValues>): Promise<Usuario> => {
+export const updateUsuario = async (id: string, data: Partial<UsuarioFormValues>): Promise<Usuario | null> => {
   try {
-    const { data, error } = await supabase
+    const { data: updatedUsuario, error } = await supabase
       .from('usuarios')
-      .update({
-        ...usuario,
-        modificado_en: new Date().toISOString()
-      })
+      .update(data)
       .eq('id', id)
-      .select()
+      .select('*')
       .single();
-    
-    if (error) {
-      console.error('Error al actualizar usuario:', error);
-      throw new Error(error.message);
-    }
-    
-    return data as Usuario;
+
+    if (error) throw error;
+    return updatedUsuario;
   } catch (error) {
-    console.error('Error en updateUsuario:', error);
+    console.error('Error al actualizar usuario:', error);
     throw error;
   }
 };
@@ -243,6 +236,29 @@ export const registerUser = async (userData: UsuarioFormValues & { password: str
   } catch (error) {
     console.error('Error en registerUser:', error);
     throw error;
+  }
+};
+
+/**
+ * Obtiene el ID de empresa asociado a un usuario por su ID de autenticación
+ */
+export const getEmpresaIdByAuthId = async (authId: string): Promise<number | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('empresa_id')
+      .eq('id', authId)
+      .single();
+    
+    if (error) {
+      console.error('Error al obtener empresa_id por authId:', error);
+      return null;
+    }
+    
+    return data?.empresa_id || null;
+  } catch (error) {
+    console.error('Error en getEmpresaIdByAuthId:', error);
+    return null;
   }
 };
 

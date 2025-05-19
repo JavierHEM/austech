@@ -155,11 +155,11 @@ export default function SalidaMasivaForm() {
         return;
       }
       
-      // Verificar que la sierra esté en estado "Lista para retiro" (estado_id = 2)
-      if (sierra.estado_id !== 2) {
+      // Verificar que la sierra esté en estado "Lista para retiro" (estado_id = 3) o "En proceso de afilado" (estado_id = 2)
+      if (sierra.estado_id !== 3 && sierra.estado_id !== 2) {
         toast({
           title: 'Error',
-          description: `La sierra no está en estado "Lista para retiro". Estado actual: ${sierra.estado_sierra?.nombre || 'Desconocido'}`,
+          description: `La sierra debe estar en estado "Lista para retiro" o "En proceso de afilado". Estado actual: ${sierra.estado_sierra?.nombre || 'Desconocido'}`,
           variant: 'destructive',
         });
         return;

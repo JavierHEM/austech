@@ -92,10 +92,11 @@ export default function ReporteAfiladosPorClientePage() {
         'Tipo Sierra': item.tipo_sierra,
         'Código Sierra': item.codigo_sierra,
         'Tipo Afilado': item.tipo_afilado,
-        // Se eliminó la columna 'Estado Sierra' según lo solicitado
         'Fecha Afilado': item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+        'Fecha Salida': item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'N/A',
+        'Estado': item.estado_afilado,
         'Fecha Registro': item.fecha_registro ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A',
-        'Activo': item.activo ? 'Sí' : 'No'
+        'Activo Sierra': item.activo ? 'Sí' : 'No'
       }));
 
       // Crear libro de Excel
@@ -252,6 +253,7 @@ export default function ReporteAfiladosPorClientePage() {
                         <TableHead>Código</TableHead>
                         <TableHead>Tipo Afilado</TableHead>
                         <TableHead>Fecha Afilado</TableHead>
+                        <TableHead>Fecha Salida</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead className="text-right">Acciones</TableHead>
                       </TableRow>
@@ -271,8 +273,11 @@ export default function ReporteAfiladosPorClientePage() {
                               {item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                             </TableCell>
                             <TableCell>
-                              <Badge variant={item.activo ? "default" : "secondary"}>
-                                {item.activo ? 'Activo' : 'Inactivo'}
+                              {item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={item.estado_afilado === 'Activo' ? "default" : "secondary"}>
+                                {item.estado_afilado}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
@@ -316,8 +321,22 @@ export default function ReporteAfiladosPorClientePage() {
                                                 <p className="text-sm">{selectedItem.tipo_afilado}</p>
                                               </div>
                                               <div>
-                                                <h4 className="text-sm font-medium">Estado Sierra</h4>
-                                                <p className="text-sm">{selectedItem.estado_sierra}</p>
+                                                <h4 className="text-sm font-medium">Fecha Afilado</h4>
+                                                <p className="text-sm">
+                                                  {selectedItem.fecha_afilado ? format(new Date(selectedItem.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                                                </p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Fecha Salida</h4>
+                                                <p className="text-sm">
+                                                  {selectedItem.fecha_salida ? format(new Date(selectedItem.fecha_salida), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                                                </p>
+                                              </div>
+                                              <div>
+                                                <h4 className="text-sm font-medium">Estado</h4>
+                                                <Badge variant={selectedItem.estado_afilado === 'Activo' ? "default" : "secondary"}>
+                                                  {selectedItem.estado_afilado}
+                                                </Badge>
                                               </div>
                                               <div>
                                                 <h4 className="text-sm font-medium">Fecha Afilado</h4>

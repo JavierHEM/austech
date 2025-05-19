@@ -93,11 +93,9 @@ export default function ClientePage() {
     const fetchUserData = async () => {
       try {
         setLoading(true);
-        console.log('Iniciando carga de datos de usuario...');
         
         // Verificar si hay sesión activa
         if (!session?.user?.id) {
-          console.log('No hay sesión de usuario activa');
           toast({
             title: 'Sesión no disponible',
             description: 'Por favor inicie sesión para ver sus datos',
@@ -105,8 +103,6 @@ export default function ClientePage() {
           });
           return;
         }
-        
-        console.log('ID de usuario:', session.user.id);
         
         // Obtener datos del usuario para identificar su empresa
         const { data: userData, error: userError } = await supabase
@@ -117,15 +113,11 @@ export default function ClientePage() {
           
         if (userError) {
           console.error('Error al obtener datos del usuario:', userError);
-          console.error('Detalles:', userError.message, userError.details);
           throw userError;
         }
         
-        console.log('Datos de usuario obtenidos:', userData);
-        
         // Verificar si el usuario tiene una empresa asignada
         if (!userData || !userData.empresa_id) {
-          console.log('Usuario sin empresa asignada');
           toast({
             title: 'Información incompleta',
             description: 'No tiene una empresa asignada a su cuenta',
@@ -135,30 +127,26 @@ export default function ClientePage() {
         }
         
         const empresaIdUsuario = userData.empresa_id;
-        console.log('ID de empresa del usuario:', empresaIdUsuario);
         setEmpresaId(empresaIdUsuario);
         
         // Cargar estadísticas reales
-        console.log('Cargando estadísticas para empresa ID:', empresaIdUsuario);
         await fetchClienteStats(empresaIdUsuario);
         
         // Cargar datos de reporte con la empresa del usuario
-        console.log('Aplicando filtros iniciales para reporte');
-        handleFilter({
+        const initialFilters = {
           empresa_id: empresaIdUsuario,
           fecha_desde: null,
           fecha_hasta: null,
           sucursal_id: null,
           tipo_sierra_id: null,
           tipo_afilado_id: null,
-          activo: true
-        });
+          estado_afilado: undefined
+        };
         
-        console.log('Carga de datos completada exitosamente');
+        setFiltrosAplicados(initialFilters);
+        handleFilter(initialFilters);
       } catch (error: any) {
         console.error('Error al obtener datos del usuario:', error);
-        console.error('Mensaje de error:', error.message || 'Error desconocido');
-        console.error('Stack:', error.stack || 'No disponible');
         
         toast({
           title: 'Error',
@@ -504,7 +492,7 @@ export default function ClientePage() {
     }
   };
 
-  // Manejar la aplicación de filtros para el reporte (versión real)
+  // Manejar la aplicación de filtros para el reporte
   const handleFilter = async (filters: ReporteAfiladosPorClienteFilters) => {
     setReporteLoading(true);
     setReporteError(null);
@@ -519,6 +507,10 @@ export default function ClientePage() {
       // Actualizar el estado con los datos reales
       setReporteItems(reporteData);
       setFiltrosAplicados(filters);
+      
+      if (reporteData.length === 0) {
+        setReporteError('No se encontraron registros con los filtros aplicados');
+      }
     } catch (error) {
       console.error('Error al obtener datos del reporte:', error);
       setReporteError('No se pudieron cargar los datos del reporte');
@@ -536,16 +528,18 @@ export default function ClientePage() {
   const handleExportToExcel = () => {
     if (reporteItems.length === 0) return;
 
-    // Formatear datos para Excel
+    // Formatear datos para Excel en el mismo orden que la tabla
     const dataForExcel = reporteItems.map(item => ({
-      'Empresa': item.empresa,
       'Sucursal': item.sucursal,
       'Tipo Sierra': item.tipo_sierra,
       'Código Sierra': item.codigo_sierra,
       'Tipo Afilado': item.tipo_afilado,
       'Fecha Afilado': item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+      'Fecha Salida': item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'N/A',
       'Fecha Registro': item.fecha_registro ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A',
-      'Activo': item.activo ? 'Sí' : 'No'
+      'Estado': item.estado_afilado,
+      'Empresa': item.empresa,
+      'Sierra Activa': item.activo ? 'Sí' : 'No'
     }));
 
     // Crear libro de Excel
@@ -789,12 +783,14 @@ export default function ClientePage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código Sierra</TableHead>
+                  <TableHead>Sucursal</TableHead>
                   <TableHead>Tipo Sierra</TableHead>
+                  <TableHead>Código Sierra</TableHead>
                   <TableHead>Tipo Afilado</TableHead>
                   <TableHead>Fecha Afilado</TableHead>
-                  <TableHead>Sucursal</TableHead>
-                  <TableHead>Activo</TableHead>
+                  <TableHead>Fecha Salida</TableHead>
+                  <TableHead>Fecha Registro</TableHead>
+                  <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -804,14 +800,16 @@ export default function ClientePage() {
                 ) : reporteItems.length > 0 ? (
                   reporteItems.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.codigo_sierra}</TableCell>
+                      <TableCell>{item.sucursal}</TableCell>
                       <TableCell>{item.tipo_sierra}</TableCell>
+                      <TableCell className="font-medium">{item.codigo_sierra}</TableCell>
                       <TableCell>{item.tipo_afilado}</TableCell>
                       <TableCell>{item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A'}</TableCell>
-                      <TableCell>{item.sucursal}</TableCell>
+                      <TableCell>{item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'N/A'}</TableCell>
+                      <TableCell>{item.fecha_registro ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A'}</TableCell>
                       <TableCell>
-                        <Badge variant={item.activo ? "success" : "destructive"}>
-                          {item.activo ? 'Activo' : 'Inactivo'}
+                        <Badge variant={item.estado_afilado === 'Activo' ? "default" : "secondary"}>
+                          {item.estado_afilado}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -831,29 +829,28 @@ export default function ClientePage() {
                             <div className="space-y-4">
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <h4 className="font-semibold text-sm">Empresa</h4>
-                                  <p>{selectedItem?.empresa}</p>
-                                </div>
-                                <div>
                                   <h4 className="font-semibold text-sm">Sucursal</h4>
                                   <p>{selectedItem?.sucursal}</p>
-                                </div>
-                                <div>
-                                  <h4 className="font-semibold text-sm">Código Sierra</h4>
-                                  <p>{selectedItem?.codigo_sierra}</p>
                                 </div>
                                 <div>
                                   <h4 className="font-semibold text-sm">Tipo Sierra</h4>
                                   <p>{selectedItem?.tipo_sierra}</p>
                                 </div>
                                 <div>
+                                  <h4 className="font-semibold text-sm">Código Sierra</h4>
+                                  <p>{selectedItem?.codigo_sierra}</p>
+                                </div>
+                                <div>
                                   <h4 className="font-semibold text-sm">Tipo Afilado</h4>
                                   <p>{selectedItem?.tipo_afilado}</p>
                                 </div>
-
                                 <div>
                                   <h4 className="font-semibold text-sm">Fecha Afilado</h4>
                                   <p>{selectedItem?.fecha_afilado ? format(new Date(selectedItem.fecha_afilado), 'dd/MM/yyyy') : 'N/A'}</p>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-sm">Fecha Salida</h4>
+                                  <p>{selectedItem?.fecha_salida ? format(new Date(selectedItem.fecha_salida), 'dd/MM/yyyy') : 'N/A'}</p>
                                 </div>
                                 <div>
                                   <h4 className="font-semibold text-sm">Fecha Registro</h4>
@@ -861,8 +858,18 @@ export default function ClientePage() {
                                 </div>
                                 <div>
                                   <h4 className="font-semibold text-sm">Estado</h4>
+                                  <Badge variant={selectedItem?.estado_afilado === 'Activo' ? "default" : "secondary"}>
+                                    {selectedItem?.estado_afilado}
+                                  </Badge>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-sm">Empresa</h4>
+                                  <p>{selectedItem?.empresa}</p>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold text-sm">Sierra Activa</h4>
                                   <Badge variant={selectedItem?.activo ? "success" : "destructive"}>
-                                    {selectedItem?.activo ? 'Activo' : 'Inactivo'}
+                                    {selectedItem?.activo ? 'Sí' : 'No'}
                                   </Badge>
                                 </div>
                               </div>

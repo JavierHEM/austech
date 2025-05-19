@@ -1,15 +1,6 @@
 import { supabase } from '@/lib/supabase-client';
-import { Afilado, AfiladoConRelaciones, AfiladoFilters } from '@/types/afilado';
-import { Usuario } from '@/types/usuario';
-import { SierraConRelaciones } from '@/types/sierra';
-
-/**
- * Interfaz para la respuesta paginada de afilados
- */
-export interface PaginatedAfilados {
-  data: AfiladoConRelaciones[];
-  count: number;
-}
+import { Afilado, AfiladoFilters, PaginatedAfilados } from '@/types/afilado';
+import { format } from 'date-fns';
 
 /**
  * Obtiene los afilados con sus relaciones con soporte para paginación
@@ -139,12 +130,34 @@ export const getAfilados = async (
       });
     }
     
-    // Asegurarse de que las fechas estén en formato ISO para evitar problemas de zona horaria
-    const processedData = data?.map(afilado => ({
-      ...afilado,
-      fecha_afilado: afilado.fecha_afilado ? new Date(afilado.fecha_afilado).toISOString().split('T')[0] : null,
-      fecha_salida: afilado.fecha_salida ? new Date(afilado.fecha_salida).toISOString().split('T')[0] : null
-    })) || [];
+    // Corregir el problema de zona horaria para las fechas
+    const processedData = data?.map(afilado => {
+      // Para corregir el problema de zona horaria, usamos la fecha original sin convertir a Date
+      // Esto evita que JavaScript reste un día debido a la conversión UTC
+      let fechaAfilado = afilado.fecha_afilado;
+      let fechaSalida = afilado.fecha_salida;
+
+      // Si tenemos una fecha, asegurarnos de preservar el día correcto
+      if (fechaAfilado && typeof fechaAfilado === 'string') {
+        // Extraer solo la parte de la fecha (YYYY-MM-DD)
+        if (fechaAfilado.includes('T')) {
+          fechaAfilado = fechaAfilado.split('T')[0];
+        }
+      }
+
+      // Lo mismo para fecha_salida
+      if (fechaSalida && typeof fechaSalida === 'string') {
+        if (fechaSalida.includes('T')) {
+          fechaSalida = fechaSalida.split('T')[0];
+        }
+      }
+
+      return {
+        ...afilado,
+        fecha_afilado: fechaAfilado,
+        fecha_salida: fechaSalida
+      };
+    }) || [];
     
     return {
       data: processedData,
@@ -157,83 +170,37 @@ export const getAfilados = async (
 };
 
 /**
- * Obtiene el ID de empresa de un usuario por su auth_id
- */
-export const getEmpresaIdByAuthId = async (authId: string): Promise<number | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('empresa_id')
-      .eq('auth_id', authId)
-      .single();
-    
-    if (error) {
-      console.error('Error al obtener empresa_id del usuario:', error);
-      return null;
-    }
-    
-    return data?.empresa_id || null;
-  } catch (error) {
-    console.error('Error en getEmpresaIdByAuthId:', error);
-    return null;
-  }
-};
-
-/**
  * Obtiene un afilado por su ID
  */
-export const getAfiladoById = async (id: number, empresaId?: number): Promise<AfiladoConRelaciones | null> => {
+export const getAfiladoById = async (id: number): Promise<Afilado | null> => {
   try {
-    let query = supabase
+    const { data, error } = await supabase
       .from('afilados')
       .select(`
         *,
-        sierra:sierra_id(*, sucursales(*), tipos_sierra(*), estados_sierra(*)),
+        sierra:sierra_id(*),
         tipo_afilado:tipo_afilado_id(*)
       `)
-      .eq('id', id);
-      
-    // Si se proporciona un ID de empresa (para clientes), verificar que el afilado pertenezca a esa empresa
-    if (empresaId) {
-      // Primero obtenemos los IDs de las sierras de la empresa
-      const { data: sierrasData } = await supabase
-        .from('sierras')
-        .select('id')
-        .eq('empresa_id', empresaId);
-      
-      if (sierrasData && sierrasData.length > 0) {
-        const sierraIds = sierrasData.map(sierra => sierra.id);
-        query = query.in('sierra_id', sierraIds);
-      } else {
-        // Si no hay sierras para esta empresa, forzar resultado vacío
-        query = query.eq('id', -1); // ID que no existirá
-      }
-    }
-    
-    const { data, error } = await query.single();
+      .eq('id', id)
+      .single();
     
     if (error) {
-      if (error.code === 'PGRST116') {
-        // No se encontró ningún afilado con ese ID
-        return null;
-      }
       console.error('Error al obtener afilado por ID:', error);
       throw new Error(error.message);
     }
     
-    // Log de diagnóstico
-    console.log('Afilado obtenido por ID:', id, 'Fecha afilado:', data?.fecha_afilado);
-    
-    // Procesar fechas para evitar problemas de zona horaria
-    if (data) {
-      return {
-        ...data,
-        fecha_afilado: data.fecha_afilado ? new Date(data.fecha_afilado).toISOString().split('T')[0] : null,
-        fecha_salida: data.fecha_salida ? new Date(data.fecha_salida).toISOString().split('T')[0] : null
-      };
+    if (!data) {
+      return null;
     }
     
-    return data;
+    console.log('Afilado obtenido por ID:', id, 'Fecha afilado:', data?.fecha_afilado);
+    
+    return {
+      ...data,
+      // Corregir el problema de zona horaria para las fechas
+      fecha_afilado: data.fecha_afilado,
+      fecha_salida: data.fecha_salida
+    };
   } catch (error) {
     console.error('Error en getAfiladoById:', error);
     throw error;
@@ -241,15 +208,15 @@ export const getAfiladoById = async (id: number, empresaId?: number): Promise<Af
 };
 
 /**
- * Obtiene todos los afilados de una sierra específica
+ * Obtiene los afilados de una sierra específica
  */
-export const getAfiladosBySierra = async (sierraId: number): Promise<AfiladoConRelaciones[]> => {
+export const getAfiladosBySierra = async (sierraId: number): Promise<Afilado[]> => {
   try {
     const { data, error } = await supabase
       .from('afilados')
       .select(`
         *,
-        sierra:sierra_id(*, sucursal:sucursal_id(*), tipo_sierra:tipo_sierra_id(*), estado_sierra:estado_id(*)),
+        sierra:sierra_id(*),
         tipo_afilado:tipo_afilado_id(*)
       `)
       .eq('sierra_id', sierraId)
@@ -262,20 +229,19 @@ export const getAfiladosBySierra = async (sierraId: number): Promise<AfiladoConR
     
     // Log de las fechas recibidas para diagnóstico
     if (data && data.length > 0) {
-      console.log('Fechas de afilado por sierra recibidas de la base de datos:');
+      console.log('Fechas de afilado recibidas para sierra ID:', sierraId);
       data.forEach((afilado, index) => {
         console.log(`Afilado #${index + 1} - ID: ${afilado.id}, Fecha afilado:`, afilado.fecha_afilado);
       });
     }
     
     // Asegurarse de que las fechas estén en formato ISO para evitar problemas de zona horaria
-    const processedData = data?.map(afilado => ({
+    return data?.map(afilado => ({
       ...afilado,
-      fecha_afilado: afilado.fecha_afilado ? new Date(afilado.fecha_afilado).toISOString().split('T')[0] : null,
-      fecha_salida: afilado.fecha_salida ? new Date(afilado.fecha_salida).toISOString().split('T')[0] : null
+      // Corregir el problema de zona horaria para las fechas
+      fecha_afilado: afilado.fecha_afilado,
+      fecha_salida: afilado.fecha_salida
     })) || [];
-    
-    return processedData;
   } catch (error) {
     console.error('Error en getAfiladosBySierra:', error);
     throw error;
@@ -283,195 +249,38 @@ export const getAfiladosBySierra = async (sierraId: number): Promise<AfiladoConR
 };
 
 /**
- * Crea un nuevo afilado
+ * Completa un afilado (cambia el estado de la sierra a "Lista para retiro")
  */
-export const createAfilado = async (afilado: Omit<Afilado, 'id' | 'creado_en' | 'modificado_en'>): Promise<Afilado> => {
+export const completarAfilado = async (afiladoId: number): Promise<boolean> => {
   try {
-    console.log('Iniciando creación de afilado con datos:', afilado);
-    
-    // Validar que la sierra exista y esté disponible para afilar
-    console.log('Verificando sierra con ID:', afilado.sierra_id);
-    const { data: sierra, error: sierraError } = await supabase
-      .from('sierras')
-      .select('*, estados_sierra(*)')
-      .eq('id', afilado.sierra_id)
-      .single();
-    
-    if (sierraError) {
-      console.error('Error al verificar sierra:', sierraError);
-      throw new Error(`No se pudo verificar la sierra seleccionada: ${sierraError.message}`);
-    }
-    
-    if (!sierra) {
-      console.error('Sierra no encontrada con ID:', afilado.sierra_id);
-      throw new Error('La sierra seleccionada no existe.');
-    }
-    
-    console.log('Sierra encontrada:', sierra);
-    
-    // Verificar que la sierra esté en un estado que permita afilado
-    const estadoPermiteAfilado = sierra.estado_id === 1; // Estado 1 es "Disponible"
-    console.log('Estado de sierra:', sierra.estado_id, 'Permite afilado:', estadoPermiteAfilado);
-    
-    if (!estadoPermiteAfilado) {
-      throw new Error(`La sierra seleccionada no está disponible para afilado. Estado actual: ${sierra.estados_sierra?.nombre || 'Desconocido'}`);
-    }
-    
-    // Validar que el tipo de afilado exista
-    console.log('Verificando tipo de afilado con ID:', afilado.tipo_afilado_id);
-    const { data: tipoAfilado, error: tipoError } = await supabase
-      .from('tipos_afilado')
-      .select('*')
-      .eq('id', afilado.tipo_afilado_id)
-      .single();
-    
-    if (tipoError && tipoError.code !== 'PGRST116') { // Ignorar error si es "no se encontraron registros"
-      console.error('Error al verificar tipo de afilado:', tipoError);
-      throw new Error(`No se pudo verificar el tipo de afilado: ${tipoError.message}`);
-    }
-    
-    if (!tipoAfilado) {
-      console.error('Tipo de afilado no encontrado con ID:', afilado.tipo_afilado_id);
-      throw new Error('El tipo de afilado seleccionado no existe.');
-    }
-    
-    console.log('Tipo de afilado encontrado:', tipoAfilado);
-    
-    // Crear el afilado
-    console.log('Insertando nuevo afilado en la base de datos');
-    
-    // Asegurarse de que la fecha de afilado esté en formato ISO sin hora
-    const fechaAfilado = afilado.fecha_afilado 
-      ? new Date(afilado.fecha_afilado).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
-      
-    console.log('Fecha de afilado formateada:', fechaAfilado);
-    
-    const afiladoToInsert = {
-      ...afilado,
-      fecha_afilado: fechaAfilado,
-      creado_en: new Date().toISOString(),
-      modificado_en: new Date().toISOString()
-    };
-    console.log('Datos a insertar:', afiladoToInsert);
-    
-    const { data, error } = await supabase
+    // Primero obtenemos el afilado para verificar la sierra
+    const { data: afilado, error: afiladoError } = await supabase
       .from('afilados')
-      .insert([afiladoToInsert])
-      .select()
+      .select('sierra_id')
+      .eq('id', afiladoId)
       .single();
     
-    if (error) {
-      console.error('Error al crear afilado:', error);
-      throw new Error(`Error al crear afilado: ${error.message}`);
+    if (afiladoError) {
+      console.error('Error al obtener afilado para completar:', afiladoError);
+      throw new Error(afiladoError.message);
     }
     
-    if (!data) {
-      console.error('No se recibieron datos después de insertar el afilado');
-      throw new Error('No se pudo crear el afilado. No se recibieron datos de confirmación.');
+    if (!afilado) {
+      throw new Error(`No se encontró el afilado con ID ${afiladoId}`);
     }
     
-    console.log('Afilado creado exitosamente:', data);
-    
-    // Actualizar el estado de la sierra a "En proceso de afilado" (estado con id 2)
-    console.log('Actualizando estado de sierra a "En proceso de afilado" (ID 2)');
+    // Actualizar el estado de la sierra a "Lista para retiro" (estado_id = 3)
     const { error: updateError } = await supabase
       .from('sierras')
-      .update({ 
-        estado_id: 2, // Estado "En proceso de afilado"
-        modificado_en: new Date().toISOString()
-      })
+      .update({ estado_id: 3 })
       .eq('id', afilado.sierra_id);
     
     if (updateError) {
       console.error('Error al actualizar estado de sierra:', updateError);
-      throw new Error(`El afilado se registró pero no se pudo actualizar el estado de la sierra: ${updateError.message}`);
+      throw new Error(updateError.message);
     }
     
-    console.log('Estado de sierra actualizado correctamente');
-    return data as Afilado;
-  } catch (error: any) {
-    console.error('Error en createAfilado:', error);
-    throw error;
-  }
-};
-
-/**
- * Actualiza un afilado existente
- */
-export const updateAfilado = async (id: number, afilado: Partial<Omit<Afilado, 'id' | 'creado_en' | 'modificado_en'>>): Promise<Afilado> => {
-  try {
-    const { data, error } = await supabase
-      .from('afilados')
-      .update({
-        ...afilado,
-        modificado_en: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error al actualizar afilado:', error);
-      throw new Error(error.message);
-    }
-    
-    return data as Afilado;
-  } catch (error) {
-    console.error('Error en updateAfilado:', error);
-    throw error;
-  }
-};
-
-/**
- * Completa un afilado (registra fecha de salida)
- */
-export const completarAfilado = async (id: number, fecha_salida: string, observaciones?: string): Promise<Afilado> => {
-  try {
-    // Obtener el afilado actual para conocer la sierra asociada
-    const { data: afiladoActual, error: getError } = await supabase
-      .from('afilados')
-      .select('*')
-      .eq('id', id)
-      .single();
-    
-    if (getError) {
-      console.error('Error al obtener afilado para completar:', getError);
-      throw new Error('No se pudo obtener información del afilado.');
-    }
-    
-    // Actualizar el afilado con la fecha de salida
-    const { data, error } = await supabase
-      .from('afilados')
-      .update({
-        fecha_salida,
-        observaciones: observaciones || afiladoActual.observaciones,
-        modificado_en: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('Error al completar afilado:', error);
-      throw new Error(error.message);
-    }
-    
-    // Actualizar el estado de la sierra a "Disponible" (estado 1)
-    const { error: updateError } = await supabase
-      .from('sierras')
-      .update({ 
-        estado_id: 1, // Estado "Disponible"
-        modificado_en: new Date().toISOString()
-      })
-      .eq('id', afiladoActual.sierra_id);
-    
-    if (updateError) {
-      console.error('Error al actualizar estado de sierra:', updateError);
-      throw new Error('El afilado se completó pero no se pudo actualizar el estado de la sierra.');
-    }
-    
-    return data as Afilado;
+    return true;
   } catch (error) {
     console.error('Error en completarAfilado:', error);
     throw error;
@@ -479,23 +288,56 @@ export const completarAfilado = async (id: number, fecha_salida: string, observa
 };
 
 /**
- * Elimina un afilado
+ * Crea un nuevo afilado
  */
-export const deleteAfilado = async (id: number): Promise<void> => {
+export const createAfilado = async (afilado: Partial<Afilado>): Promise<Afilado> => {
   try {
-    // Obtener el afilado para conocer la sierra asociada
-    const { data: afilado, error: getError } = await supabase
+    // Formatear la fecha para evitar problemas con la zona horaria
+    const fechaAfilado = afilado.fecha_afilado 
+      ? afilado.fecha_afilado
+      : format(new Date(), 'yyyy-MM-dd');
+    
+    // Insertar el nuevo afilado
+    const { data, error } = await supabase
       .from('afilados')
-      .select('*')
-      .eq('id', id)
+      .insert({
+        sierra_id: afilado.sierra_id,
+        tipo_afilado_id: afilado.tipo_afilado_id,
+        fecha_afilado: fechaAfilado,
+        observaciones: afilado.observaciones || null,
+        created_by: afilado.created_by || null
+      })
+      .select()
       .single();
     
-    if (getError) {
-      console.error('Error al obtener afilado para eliminar:', getError);
-      throw new Error('No se pudo obtener información del afilado.');
+    if (error) {
+      console.error('Error al crear afilado:', error);
+      throw new Error(error.message);
     }
     
-    // Eliminar el afilado
+    // Actualizar el estado de la sierra a "En proceso de afilado" (estado_id = 2)
+    const { error: updateError } = await supabase
+      .from('sierras')
+      .update({ estado_id: 2 })
+      .eq('id', afilado.sierra_id);
+    
+    if (updateError) {
+      console.error('Error al actualizar estado de sierra:', updateError);
+      throw new Error(updateError.message);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('Error en createAfilado:', error);
+    throw error;
+  }
+};
+
+/**
+ * Elimina un afilado
+ */
+export const deleteAfilado = async (id: number): Promise<boolean> => {
+  try {
     const { error } = await supabase
       .from('afilados')
       .delete()
@@ -506,27 +348,9 @@ export const deleteAfilado = async (id: number): Promise<void> => {
       throw new Error(error.message);
     }
     
-    // Si el afilado no tiene fecha de salida, la sierra estaba en proceso de afilado
-    // Por lo tanto, actualizamos el estado de la sierra a "Disponible"
-    if (!afilado.fecha_salida) {
-      const { error: updateError } = await supabase
-        .from('sierras')
-        .update({ 
-          estado_id: 1, // Estado "Disponible"
-          modificado_en: new Date().toISOString()
-        })
-        .eq('id', afilado.sierra_id);
-      
-      if (updateError) {
-        console.error('Error al actualizar estado de sierra:', updateError);
-        throw new Error('El afilado se eliminó pero no se pudo actualizar el estado de la sierra.');
-      }
-    }
+    return true;
   } catch (error) {
     console.error('Error en deleteAfilado:', error);
     throw error;
   }
 };
-
-// Exportar tipos para usar en componentes
-export type { Afilado, AfiladoConRelaciones, AfiladoFilters };

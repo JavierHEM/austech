@@ -54,7 +54,9 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase-client';
-import { getAfilados, deleteAfilado, AfiladoFilters, PaginatedAfilados, getEmpresaIdByAuthId } from '@/services/afiladoService';
+import { getAfilados, deleteAfilado } from '@/services/afiladoService';
+import { AfiladoFilters, PaginatedAfilados } from '@/types/afilado';
+import { getEmpresaIdByAuthId } from '@/services/userServices';
 import { marcarSierraListaParaRetiro, getSierraByCodigoBarras } from '@/services/sierraService';
 import SierraSearchBar from '@/components/afilados/SierraSearchBar';
 import AfiladoSearchBar from '@/components/afilados/AfiladoSearchBar';
@@ -439,14 +441,25 @@ export default function AfiladosPage() {
                             ? (() => {
                                 // Asegurarse de que la fecha se procese correctamente
                                 try {
-                                  // Convertir la fecha a objeto Date y formatearla
-                                  const fechaObj = new Date(afilado.fecha_afilado);
-                                  // Verificar si la fecha es válida
-                                  if (isNaN(fechaObj.getTime())) {
-                                    console.error('Fecha inválida:', afilado.fecha_afilado);
-                                    return afilado.fecha_afilado || 'Fecha inválida';
+                                  // Corregir el problema de zona horaria
+                                  // Extraer los componentes de la fecha (YYYY-MM-DD)
+                                  if (typeof afilado.fecha_afilado === 'string') {
+                                    // Si la fecha tiene formato ISO (con T), extraer solo la parte de fecha
+                                    const fechaStr = afilado.fecha_afilado.includes('T') 
+                                      ? afilado.fecha_afilado.split('T')[0] 
+                                      : afilado.fecha_afilado;
+                                    
+                                    // Crear la fecha usando UTC para evitar problemas de zona horaria
+                                    const [year, month, day] = fechaStr.split('-').map(Number);
+                                    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                                      // Usar formato directo sin conversión de zona horaria
+                                      return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+                                    }
                                   }
-                                  return format(fechaObj, 'dd/MM/yyyy', { locale: es });
+                                  
+                                  // Fallback al método anterior si hay algún problema
+                                  console.error('Usando método fallback para fecha:', afilado.fecha_afilado);
+                                  return afilado.fecha_afilado || 'Fecha inválida';
                                 } catch (error) {
                                   console.error('Error al formatear fecha:', error);
                                   // Mostrar la fecha sin formato en caso de error
@@ -459,15 +472,25 @@ export default function AfiladosPage() {
                       </TableCell>
                       <TableCell>
                         {afilado.fecha_salida 
-                          ? (
-                            <div className="flex items-center">
-                              <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                              {format(new Date(afilado.fecha_salida), 'dd/MM/yyyy', { locale: es })}
-                            </div>
-                          )
-                          : 'Pendiente'
-                        }
-                      </TableCell>
+                          ? (() => {
+                              // Corregir el problema de zona horaria para fecha_salida
+                              if (typeof afilado.fecha_salida === 'string') {
+                                // Si la fecha tiene formato ISO (con T), extraer solo la parte de fecha
+                                const fechaStr = afilado.fecha_salida.includes('T') 
+                                  ? afilado.fecha_salida.split('T')[0] 
+                                  : afilado.fecha_salida;
+                                
+                                // Extraer los componentes de la fecha (YYYY-MM-DD)
+                                const [year, month, day] = fechaStr.split('-').map(Number);
+                                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                                  // Usar formato directo sin conversión de zona horaria
+                                  return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+                                }
+                              }
+                              return afilado.fecha_salida;
+                            })()
+                          : '-'}
+                        </TableCell>
                       <TableCell>
                         {afilado.fecha_salida ? (
                           <Badge variant="success">Completado</Badge>

@@ -14,6 +14,14 @@ export async function POST(request: Request) {
     const requestData = await request.json();
     const { email, password, nombre_completo, rol_id, empresa_id, activo } = requestData;
     
+    console.log('Datos recibidos para crear usuario:', { 
+      email, 
+      nombre_completo, 
+      rol_id, 
+      empresa_id, 
+      activo 
+    });
+    
     // Validaciones básicas
     if (!email || !password || !nombre_completo || !rol_id) {
       return NextResponse.json(
@@ -22,13 +30,21 @@ export async function POST(request: Request) {
       );
     }
     
-    // En un entorno de producción, deberíamos verificar permisos aquí
-    // Sin embargo, para resolver el problema actual, vamos a usar directamente
-    // las credenciales de servicio que tienen permisos administrativos
+    // Validar empresa_id para usuarios con rol cliente (rol_id = 3)
+    if (rol_id === 3 && !empresa_id) {
+      return NextResponse.json(
+        { error: 'El campo empresa es requerido para usuarios de tipo cliente' },
+        { status: 400 }
+      );
+    }
     
-    // Nota: En una implementación de producción, se recomienda implementar
-    // verificación de roles y permisos utilizando middleware o una solución
-    // que funcione correctamente con la arquitectura de Next.js
+    // Procesar el empresa_id correctamente
+    let empresaIdValue = null;
+    if (rol_id === 3 && empresa_id) {
+      // Para usuarios cliente, asegurarse de que empresa_id sea un número
+      empresaIdValue = typeof empresa_id === 'string' ? parseInt(empresa_id) : empresa_id;
+      console.log('Procesando empresa_id:', empresaIdValue, 'para usuario cliente');
+    }
     
     // Usar el cliente admin para crear el usuario
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -56,8 +72,8 @@ export async function POST(request: Request) {
       );
     }
     
-    // Esperar un momento para que el trigger tenga tiempo de ejecutarse
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Esperar para que el trigger tenga tiempo de ejecutarse
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Verificar si el usuario fue creado en la tabla usuarios
     const { data: userData, error: userError } = await supabaseAdmin
@@ -66,30 +82,44 @@ export async function POST(request: Request) {
       .eq('id', authData.user.id)
       .single();
     
-    // Si hay un error, significa que el usuario no fue creado en la tabla usuarios
-    if (userError) {
-      console.error('Error al verificar la creación del usuario en la tabla usuarios:', userError);
+    console.log('Verificación de usuario creado:', userData ? 'Encontrado' : 'No encontrado');
+    if (userData) {
+      console.log('Datos actuales del usuario:', userData);
+    }
+    
+    // Siempre actualizar el usuario para asegurarnos de que tenga los datos correctos
+    // especialmente el empresa_id para usuarios cliente
+    const { error: updateError } = await supabaseAdmin
+      .from('usuarios')
+      .upsert({
+        id: authData.user.id,
+        email,
+        nombre_completo,
+        rol_id,
+        empresa_id: empresaIdValue,
+        activo: activo !== false,
+        creado_en: new Date().toISOString()
+      });
       
-      // Intentamos actualizar manualmente el usuario en la tabla usuarios
-      const { error: updateError } = await supabaseAdmin
-        .from('usuarios')
-        .upsert({
-          id: authData.user.id,
-          email,
-          nombre_completo,
-          rol_id,
-          empresa_id: empresa_id || null,
-          activo: activo !== false,
-          creado_en: new Date().toISOString()
-        });
-        
-      if (updateError) {
-        console.error('Error al actualizar manualmente el usuario:', updateError);
-        return NextResponse.json(
-          { error: 'Error al actualizar el usuario en la tabla usuarios' },
-          { status: 500 }
-        );
-      }
+    console.log('Resultado de la actualización:', updateError ? 'Error' : 'Éxito');
+    if (updateError) {
+      console.error('Error al actualizar usuario:', updateError);
+      return NextResponse.json(
+        { error: 'Error al actualizar el usuario en la tabla usuarios' },
+        { status: 500 }
+      );
+    }
+    
+    // Verificar nuevamente después de la actualización
+    const { data: updatedUserData, error: verifyError } = await supabaseAdmin
+      .from('usuarios')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+      
+    console.log('Usuario después de actualización:', updatedUserData || 'No encontrado');
+    if (updatedUserData) {
+      console.log('Empresa ID final:', updatedUserData.empresa_id);
     }
     
     return NextResponse.json({

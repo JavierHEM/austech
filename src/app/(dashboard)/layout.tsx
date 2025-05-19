@@ -68,7 +68,7 @@ const navCategories: NavCategory[] = [
         requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver sucursales
       },
       {
-        label: 'Sierras',
+        label: 'Herramientas',
         href: '/sierras',
         icon: <Scissors className="h-5 w-5" />,
         isActive: (pathname) => pathname ? (pathname.startsWith('/sierras') && pathname !== '/sierras/buscar' && !pathname.startsWith('/tipos-sierra')) : false,
@@ -125,7 +125,7 @@ const navCategories: NavCategory[] = [
     name: 'Catálogos',
     items: [
       {
-        label: 'Tipos de Sierra',
+        label: 'Tipos de Herramientas',
         href: '/tipos-sierra',
         icon: <Scissors className="h-5 w-5 rotate-45" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/tipos-sierra') : false,

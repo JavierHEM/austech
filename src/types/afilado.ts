@@ -16,6 +16,7 @@ export interface Afilado {
   fecha_salida: string | null;
   observaciones: string;
   usuario_id: string;
+  created_by?: string | null; // Agregado para compatibilidad con el servicio
   creado_en: string;
   modificado_en: string;
 }
@@ -31,4 +32,10 @@ export interface AfiladoFilters {
   tipo_afilado_id?: number | null;
   fecha_desde?: string | null;
   fecha_hasta?: string | null;
+}
+
+// Interfaz para la paginación de afilados
+export interface PaginatedAfilados {
+  data: AfiladoConRelaciones[];
+  count: number;
 }
