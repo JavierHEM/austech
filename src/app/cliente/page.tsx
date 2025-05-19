@@ -787,7 +787,7 @@ export default function ClientePage() {
             <div className="mb-6">
               <ReporteAfiladosFilters 
                 onFilter={handleFilter} 
-                empresaIdFijo={stats.empresaId?.toString()}
+                empresaIdFijo={empresaId ? empresaId.toString() : undefined}
                 isLoading={reporteLoading}
               />
             </div>

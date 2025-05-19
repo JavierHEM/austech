@@ -28,6 +28,10 @@ export async function POST(request: Request) {
     });
     
     // Crear usuario en Auth
+    console.log('Intentando crear usuario con Supabase Admin');
+    console.log('URL de Supabase:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('¿Tiene clave de servicio?', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -39,19 +43,22 @@ export async function POST(request: Request) {
     });
     
     if (authError) {
-      console.error('Error al crear usuario en Auth:', authError);
+      console.error('Error detallado al crear usuario en Auth:', JSON.stringify(authError));
       return NextResponse.json(
-        { error: authError.message },
-        { status: 500 }
+        { error: `Error al crear usuario en Auth: ${authError.message}` },
+        { status: 400 }
       );
     }
     
-    if (!authData.user) {
+    if (!authData || !authData.user) {
+      console.error('No se recibieron datos de usuario después de la creación');
       return NextResponse.json(
         { error: 'No se pudo crear el usuario' },
         { status: 500 }
       );
     }
+    
+    console.log('Usuario creado exitosamente en Auth:', authData.user.id);
     
     // Esperar un momento para que el trigger tenga tiempo de ejecutarse
     await new Promise(resolve => setTimeout(resolve, 1000));

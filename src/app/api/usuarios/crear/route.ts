@@ -47,9 +47,14 @@ export async function POST(request: Request) {
     }
     
     // Usar el cliente admin para crear el usuario
+    console.log('Intentando crear usuario con Supabase Admin');
+    console.log('URL de Supabase:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+    console.log('¿Tiene clave de servicio?', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    
+    // Crear usuario en Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
+      email: email,
+      password: password,
       email_confirm: true,
       user_metadata: {
         nombre_completo,
@@ -58,14 +63,14 @@ export async function POST(request: Request) {
     });
     
     if (authError) {
-      console.error('Error al crear usuario en Auth:', authError);
+      console.error('Error detallado al crear usuario en Auth:', JSON.stringify(authError));
       return NextResponse.json(
-        { error: authError.message },
-        { status: 500 }
+        { error: `Error al crear usuario en Auth: ${authError.message}` },
+        { status: 400 }
       );
     }
     
-    if (!authData.user) {
+    if (!authData || !authData.user) {
       return NextResponse.json(
         { error: 'No se pudo crear el usuario' },
         { status: 500 }

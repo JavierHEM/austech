@@ -341,8 +341,7 @@ export const createAfilado = async (afilado: Partial<Afilado>): Promise<Afilado>
         sierra_id: afilado.sierra_id,
         tipo_afilado_id: afilado.tipo_afilado_id,
         fecha_afilado: fechaAfilado,
-        observaciones: afilado.observaciones || null,
-        created_by: afilado.created_by || null
+        observaciones: afilado.observaciones || null
       })
       .select()
       .single();
