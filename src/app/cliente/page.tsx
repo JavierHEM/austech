@@ -498,15 +498,29 @@ export default function ClientePage() {
     setReporteError(null);
     
     try {
+      // Asegurarse de que se use el ID de empresa del usuario cliente si está disponible
+      let filtrosFinales = { ...filters };
+      
+      // Si el usuario es cliente y tenemos su ID de empresa, forzar ese valor
+      if (role === 'cliente' && empresaId) {
+        console.log('Forzando ID de empresa del cliente en filtros:', empresaId);
+        // Asegurarse de que empresa_id sea string como espera el servicio
+        filtrosFinales.empresa_id = empresaId.toString();
+      }
+      
       // Importar el servicio de reportes
       const { getReporteAfiladosPorCliente } = await import('@/services/reporteService');
       
+      console.log('Aplicando filtros para reporte:', filtrosFinales);
+      
       // Obtener datos reales del servicio
-      const reporteData = await getReporteAfiladosPorCliente(filters);
+      const reporteData = await getReporteAfiladosPorCliente(filtrosFinales);
+      
+      console.log(`Reporte cargado: ${reporteData.length} registros encontrados`);
       
       // Actualizar el estado con los datos reales
       setReporteItems(reporteData);
-      setFiltrosAplicados(filters);
+      setFiltrosAplicados(filtrosFinales);
       
       if (reporteData.length === 0) {
         setReporteError('No se encontraron registros con los filtros aplicados');

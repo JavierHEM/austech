@@ -53,10 +53,10 @@ interface AfiladoData {
 
 // Interfaz para los filtros del reporte
 export interface ReporteAfiladosPorClienteFilters {
-  empresa_id: number;
-  sucursal_id: number | null;
-  tipo_sierra_id: number | null;
-  tipo_afilado_id: number | null;
+  empresa_id: number | string;
+  sucursal_id: number | string | null;
+  tipo_sierra_id: number | string | null;
+  tipo_afilado_id: number | string | null;
   fecha_desde: string | null;
   fecha_hasta: string | null;
   activo?: boolean;
@@ -143,8 +143,10 @@ export const getReporteAfiladosPorCliente = async (
       `)
       .order('fecha_afilado', { ascending: false })
     
-    // Filtrar por empresa_id
-    query = query.eq('sierras.sucursales.empresa_id', filters.empresa_id);
+    // Filtrar por empresa_id (convertir a número si es string)
+    const empresaId = typeof filters.empresa_id === 'string' ? parseInt(filters.empresa_id) : filters.empresa_id;
+    console.log('Filtrando por empresa_id:', empresaId, 'tipo:', typeof empresaId);
+    query = query.eq('sierras.sucursales.empresa_id', empresaId);
     
     // El filtro 'activo' se eliminó por ser redundante
     // Ahora solo usamos 'estado_afilado' para filtrar por el estado del afilado

@@ -95,9 +95,18 @@ export default function ReporteAfiladosFilters({
         
         // Si hay una empresa fija (para usuarios con rol cliente), establecerla como valor por defecto
         if (empresaIdFijo) {
+          console.log('Estableciendo empresa fija en filtros:', empresaIdFijo);
           form.setValue('empresa_id', empresaIdFijo);
           // Cargar sucursales para esta empresa
           loadSucursales(empresaIdFijo);
+          
+          // Buscar el nombre de la empresa para mostrarlo en la UI
+          const empresaSeleccionada = data.find(e => e.id.toString() === empresaIdFijo);
+          if (empresaSeleccionada) {
+            console.log('Empresa seleccionada:', empresaSeleccionada.razon_social);
+          } else {
+            console.warn('No se encontró la empresa con ID:', empresaIdFijo);
+          }
         }
       } catch (error) {
         console.error('Error al cargar empresas:', error);
@@ -205,7 +214,11 @@ export default function ReporteAfiladosFilters({
             <FormLabel htmlFor="empresa_id">Empresa</FormLabel>
             <Select 
               disabled={loading || !!empresaIdFijo} 
-              onValueChange={(value) => form.setValue('empresa_id', value)}
+              onValueChange={(value) => {
+                console.log('Empresa seleccionada manualmente:', value);
+                form.setValue('empresa_id', value);
+                if (value) loadSucursales(value);
+              }}
               value={form.watch('empresa_id')}
             >
               <SelectTrigger>
