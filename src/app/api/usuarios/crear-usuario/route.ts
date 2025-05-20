@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 
+// Configurar el runtime para usar Node.js en lugar de Edge
+export const runtime = 'nodejs';
+// Configurar el tiempo máximo de ejecución (opcional)
+export const maxDuration = 10; // segundos
+
 // Crear un cliente de Supabase con credenciales de servicio
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -8,6 +13,15 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: Request) {
+  // Verificar explícitamente la clave de servicio
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY.length < 10) {
+    console.error('Error: SUPABASE_SERVICE_ROLE_KEY no está configurada correctamente');
+    return NextResponse.json(
+      { error: 'Error de configuración del servidor: Clave de servicio no disponible o inválida' },
+      { status: 500 }
+    );
+  }
+  
   try {
     const requestData = await request.json();
     const { email, password, nombre_completo, rol_id, empresa_id, activo } = requestData;

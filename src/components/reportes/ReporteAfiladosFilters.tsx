@@ -101,11 +101,20 @@ export default function ReporteAfiladosFilters({
           loadSucursales(empresaIdFijo);
           
           // Buscar el nombre de la empresa para mostrarlo en la UI
-          const empresaSeleccionada = data.find(e => e.id.toString() === empresaIdFijo);
+          // Asegurarse de que la comparación sea robusta convirtiendo ambos valores a string y normalizándolos
+          console.log('Empresas disponibles:', data.map(e => ({ id: e.id, razon_social: e.razon_social })));
+          console.log('Buscando empresa con ID:', empresaIdFijo, 'tipo:', typeof empresaIdFijo);
+          
+          // Comparación más robusta
+          const empresaSeleccionada = data.find(e => 
+            String(e.id).trim() === String(empresaIdFijo).trim() || 
+            Number(e.id) === Number(empresaIdFijo)
+          );
+          
           if (empresaSeleccionada) {
-            console.log('Empresa seleccionada:', empresaSeleccionada.razon_social);
+            console.log('Empresa seleccionada encontrada:', empresaSeleccionada.razon_social, 'con ID:', empresaSeleccionada.id);
           } else {
-            console.warn('No se encontró la empresa con ID:', empresaIdFijo);
+            console.warn('No se encontró la empresa con ID:', empresaIdFijo, 'entre las empresas disponibles');
           }
         }
       } catch (error) {
@@ -219,7 +228,7 @@ export default function ReporteAfiladosFilters({
                 form.setValue('empresa_id', value);
                 if (value) loadSucursales(value);
               }}
-              value={form.watch('empresa_id')}
+              value={form.watch('empresa_id') ? String(form.watch('empresa_id')) : undefined}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccione una empresa" />

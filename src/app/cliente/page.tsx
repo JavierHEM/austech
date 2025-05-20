@@ -127,6 +127,7 @@ export default function ClientePage() {
         }
         
         const empresaIdUsuario = userData.empresa_id;
+        console.log('ID de empresa del usuario obtenido:', empresaIdUsuario, 'tipo:', typeof empresaIdUsuario);
         setEmpresaId(empresaIdUsuario);
         
         // Cargar estadísticas reales
@@ -787,9 +788,10 @@ export default function ClientePage() {
             <div className="mb-6">
               <ReporteAfiladosFilters 
                 onFilter={handleFilter} 
-                empresaIdFijo={empresaId ? empresaId.toString() : undefined}
+                empresaIdFijo={empresaId ? String(empresaId) : undefined}
                 isLoading={reporteLoading}
               />
+              {/* Los logs se muestran en la consola del navegador */}
             </div>
           )}
           
