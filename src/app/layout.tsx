@@ -26,7 +26,7 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          <SessionKeepAlive interval={5} />
+          <SessionKeepAlive interval={30} />
           {children}
         </Providers>
       </body>

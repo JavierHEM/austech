@@ -102,15 +102,30 @@ export function useAuth() {
 
       // Convertir el string a uno de los tipos permitidos en UserRole
       let typedRole: UserRole = null;
-      if (roleName === 'gerente' || roleName === 'administrador' || roleName === 'cliente') {
-        typedRole = roleName;
-      } else if (roleName.toLowerCase() === 'administrador') {
-        typedRole = 'administrador';
-      } else if (roleName.toLowerCase() === 'gerente') {
+      
+      // Normalizar el nombre del rol a minúsculas para comparación consistente
+      const normalizedRoleName = roleName.toLowerCase().trim();
+      console.log('Nombre de rol normalizado:', normalizedRoleName);
+      
+      // Verificar el rol usando el nombre normalizado
+      if (normalizedRoleName === 'gerente') {
         typedRole = 'gerente';
-      } else if (roleName.toLowerCase() === 'cliente') {
+      } else if (normalizedRoleName === 'administrador') {
+        typedRole = 'administrador';
+      } else if (normalizedRoleName === 'cliente') {
         typedRole = 'cliente';
+      } else {
+        // Si no coincide exactamente, intentar hacer una coincidencia parcial
+        if (normalizedRoleName.includes('admin')) {
+          typedRole = 'administrador';
+        } else if (normalizedRoleName.includes('gerent')) {
+          typedRole = 'gerente';
+        } else if (normalizedRoleName.includes('client')) {
+          typedRole = 'cliente';
+        }
       }
+      
+      console.log('Rol detectado para', userData.email, ':', typedRole);
       
       // Guardar el rol en caché para futuras consultas
       if (typedRole) {
@@ -128,12 +143,20 @@ export function useAuth() {
   const handleRoleBasedRedirection = useCallback((userRole: UserRole) => {
     if (isRedirecting) return; // Evitar redirecciones múltiples
     
+    console.log('Redirigiendo basado en rol:', userRole);
+    
     if (userRole === 'gerente' || userRole === 'administrador') {
       setIsRedirecting(true);
+      console.log('Redirigiendo a /dashboard');
       router.push('/dashboard');
     } else if (userRole === 'cliente') {
       setIsRedirecting(true);
+      console.log('Redirigiendo a /cliente');
       router.push('/cliente');
+    } else {
+      // Si no hay un rol válido o es null, redirigir al login
+      console.log('Rol no válido, redirigiendo a /login');
+      router.push('/login');
     }
   }, [router, isRedirecting]);
 
@@ -144,6 +167,7 @@ export function useAuth() {
     // Función para inicializar la sesión (se ejecuta solo una vez)
     const initSession = async () => {
       try {
+        console.log('Inicializando sesión...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -152,23 +176,70 @@ export function useAuth() {
           return;
         }
 
-        if (isMounted.current) setSession(session);
-
-        if (session?.user) {
-          const userRole = await getUserRole(session.user.id);
-          // console.log('Rol obtenido para el usuario:', userRole);
-          if (isMounted.current) setRole(userRole);
+        if (session) {
+          console.log('Sesión encontrada para usuario:', session.user.email);
+          if (isMounted.current) setSession(session);
           
-          // No redirigir automáticamente aquí, solo al hacer login explícito
+          // Obtener el rol del usuario
+          console.log('Obteniendo rol para usuario ID:', session.user.id);
+          const userRole = await getUserRole(session.user.id);
+          console.log('Rol obtenido:', userRole);
+          if (isMounted.current) setRole(userRole);
+        } else {
+          console.log('No se encontró sesión activa');
         }
+        
+        if (isMounted.current) setLoading(false);
       } catch (error) {
-        console.error('Error al inicializar sesión:', error);
-      } finally {
+        console.error('Error en initSession:', error);
         if (isMounted.current) setLoading(false);
       }
     };
 
     initSession();
+    
+    // Agregar un manejador de eventos para el enfoque de la ventana
+    const handleFocus = async () => {
+      // Cuando la ventana recupera el foco, verificar la sesión actual
+      try {
+        console.log('Verificando sesión al recuperar foco...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error al verificar la sesión en focus:', error);
+          return;
+        }
+        
+        // Si hay una sesión activa, actualizar el estado
+        if (session && isMounted.current) {
+          console.log('Sesión recuperada en focus para usuario:', session.user.email);
+          setSession(session);
+          
+          // Siempre actualizar el rol para asegurar que esté disponible
+          if (session.user) {
+            console.log('Actualizando rol en focus para usuario ID:', session.user.id);
+            const userRole = await getUserRole(session.user.id);
+            console.log('Rol actualizado en focus:', userRole);
+            if (isMounted.current) setRole(userRole);
+          }
+        } else {
+          console.log('No se encontró sesión activa al recuperar foco');
+        }
+      } catch (error) {
+        console.error('Error al verificar sesión en focus:', error);
+      }
+    };
+    
+    // Agregar event listeners para detectar cuando la ventana recupera el foco
+    window.addEventListener('focus', handleFocus);
+    
+    // Crear una referencia a la función de manejo de visibilidad para poder eliminarla después
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleFocus();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Suscribirse a cambios de autenticación (una sola vez)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -207,6 +278,10 @@ export function useAuth() {
     return () => {
       isMounted.current = false;
       subscription.unsubscribe();
+      
+      // Eliminar los event listeners
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [router, handleRoleBasedRedirection]);
 
@@ -247,13 +322,31 @@ export function useAuth() {
 
   const logout = async () => {
     try {
+      console.log('Iniciando proceso de cierre de sesión...');
       setIsRedirecting(false);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
       
-      // La redirección se maneja en el listener de onAuthStateChange
+      // Limpiar la caché de roles antes de cerrar sesión
+      userRoleCache.clear();
+      
+      // Limpiar estado local primero
+      setSession(null);
+      setRole(null);
+      
+      // Cerrar sesión en Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Error al cerrar sesión en Supabase:', error);
+        throw error;
+      }
+      
+      console.log('Sesión cerrada correctamente');
+      
+      // Forzar la redirección en lugar de esperar al listener
+      router.push('/login');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
+      // Intentar redireccionar de todos modos
+      router.push('/login');
       throw error;
     }
   };

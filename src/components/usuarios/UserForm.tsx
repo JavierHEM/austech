@@ -131,15 +131,15 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
   // Mostrar/ocultar campo de empresa según el rol seleccionado
   useEffect(() => {
     const selectedRoleId = form.watch('role_id');
-    console.log('Rol seleccionado:', selectedRoleId);
+
     
     if (selectedRoleId) {
       const roleId = parseInt(selectedRoleId);
-      console.log('Rol ID como número:', roleId);
+
       
       // Asumiendo que el rol con ID 3 es 'Cliente' según tu trigger
       const isClientRole = roleId === 3;
-      console.log('¿Es rol de cliente?:', isClientRole);
+
       
       setShowEmpresaField(isClientRole);
       
@@ -160,7 +160,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
       
               if (error) throw error;
 
-              console.log('Empresas cargadas:', data);
+
               setEmpresas(data || []);
               setLoadingEmpresas(false);
             } catch (error) {
@@ -188,9 +188,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
       const fetchUser = async () => {
         try {
           setInitialLoading(true);
-          console.log('Cargando usuario con ID:', userId);
-          
-          console.log('Cargando usuario con ID:', userId);
+
           
           // Consultar por ID sin convertir (podría ser UUID o número)
           const { data: userData, error: userError } = await supabase
@@ -209,7 +207,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
             throw new Error('Usuario no encontrado');
           }
           
-          console.log('Datos del usuario cargados:', userData);
+
           
           // Establecer los valores en el formulario
           form.setValue('nombre', userData.nombre_completo || '');
@@ -305,7 +303,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
         if (parseInt(data.role_id) === 3) {
           if (data.empresa_id) {
             clientData.empresa_id = parseInt(data.empresa_id);
-            console.log('Enviando empresa_id:', clientData.empresa_id, 'para usuario cliente');
+
           } else {
             console.error('Error: Se requiere empresa_id para usuarios cliente');
             toast({
@@ -339,7 +337,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
         
         // El usuario ha sido creado exitosamente en el servidor
         // No necesitamos verificar la tabla usuarios porque el endpoint ya lo hizo por nosotros
-        console.log('Usuario creado exitosamente:', authData);
+
       }
 
       toast({

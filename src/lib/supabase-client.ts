@@ -9,8 +9,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-console.log('Inicializando Supabase con URL:', supabaseUrl);
-console.log('Key length:', supabaseAnonKey?.length);
 
 export const supabase = createClient<Database>(
   supabaseUrl as string, 
@@ -21,7 +19,40 @@ export const supabase = createClient<Database>(
       persistSession: true,
       detectSessionInUrl: true,
       storageKey: 'austech-auth-token',
-      flowType: 'implicit'
+      flowType: 'implicit',
+      // Aumentar el tiempo de vida de la sesión
+      storage: {
+        getItem: (key) => {
+          try {
+            if (typeof window !== 'undefined') {
+              const item = localStorage.getItem(key);
+              return item;
+            }
+            return null;
+          } catch (error) {
+            console.error('Error al acceder a localStorage:', error);
+            return null;
+          }
+        },
+        setItem: (key, value) => {
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem(key, value);
+            }
+          } catch (error) {
+            console.error('Error al escribir en localStorage:', error);
+          }
+        },
+        removeItem: (key) => {
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem(key);
+            }
+          } catch (error) {
+            console.error('Error al eliminar de localStorage:', error);
+          }
+        }
+      }
     },
     global: {
       headers: {

@@ -189,19 +189,53 @@ export const createBajaMasiva = async (bajaMasiva: BajaMasivaInput, usuarioId: s
         throw new Error(`No se pudo registrar la baja de la sierra #${sierraId}: ${detalleError.message}`);
       }
       
-      // Actualizar el estado de la sierra a inactiva y cambiar a "Fuera de servicio"
+      // Actualizar el estado de la sierra a inactiva, cambiar a "Fuera de servicio" y registrar la observación
       const { error: updateError } = await supabase
         .from('sierras')
         .update({
           activo: false,
           estado_id: 4, // Estado "Fuera de servicio"
-          modificado_en: new Date().toISOString()
+          modificado_en: new Date().toISOString(),
+          observaciones: bajaMasiva.observaciones || 'Baja masiva sin observaciones' // Agregar las observaciones de la baja masiva
         })
         .eq('id', sierraId);
       
       if (updateError) {
         console.error(`Error al actualizar estado de la sierra ${sierraId}:`, updateError);
         throw new Error(`No se pudo actualizar el estado de la sierra #${sierraId}: ${updateError.message}`);
+      }
+      
+      // Obtener el afilado con el ID más alto (más reciente) para esta sierra
+      const { data: ultimoAfilado, error: ultimoAfiladoError } = await supabase
+        .from('afilados')
+        .select('id')
+        .eq('sierra_id', sierraId)
+        .order('id', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (ultimoAfiladoError && ultimoAfiladoError.code !== 'PGRST116') { // PGRST116 es el código para "No se encontraron resultados"
+        console.error(`Error al buscar el último afilado para la sierra ${sierraId}:`, ultimoAfiladoError);
+        // No lanzamos error aquí para permitir que el proceso continúe incluso si no hay afilados
+      }
+      
+      // Si se encontró un afilado, actualizar su estado a false
+      if (ultimoAfilado) {
+        const { error: afiladoUpdateError } = await supabase
+          .from('afilados')
+          .update({
+            estado: false,
+            modificado_en: new Date().toISOString(),
+            observaciones: bajaMasiva.observaciones || 'Sierra dada de baja en proceso masivo'
+          })
+          .eq('id', ultimoAfilado.id);
+        
+        if (afiladoUpdateError) {
+          console.error(`Error al actualizar estado del afilado ${ultimoAfilado.id} para la sierra ${sierraId}:`, afiladoUpdateError);
+          throw new Error(`No se pudo actualizar el estado del afilado #${ultimoAfilado.id} para la sierra #${sierraId}: ${afiladoUpdateError.message}`);
+        }
+      } else {
+        console.log(`No se encontraron afilados para la sierra ${sierraId}`);
       }
     }
     

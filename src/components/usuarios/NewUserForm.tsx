@@ -210,7 +210,7 @@ export default function NewUserForm() {
         activo
       };
       
-      console.log('Enviando datos de usuario:', userData);
+
       
       // Send request to API
       const response = await fetch('/api/usuarios/crear-usuario', {

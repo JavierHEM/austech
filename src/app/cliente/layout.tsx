@@ -19,10 +19,35 @@ export default function ClienteLayout({
 
   // Verificar que el usuario sea cliente
   useEffect(() => {
-    // Solo redirigir si hay una sesión y el rol no es cliente
-    if (session && role && role !== 'cliente') {
+    console.log('Verificando acceso a dashboard de cliente. Sesión:', !!session, 'Rol:', role);
+    
+    // Si no hay sesión, esperar un momento antes de redirigir
+    // Esto da tiempo a que la sesión se cargue completamente
+    if (!session) {
+      const timer = setTimeout(() => {
+        // Solo redirigir si todavía no hay sesión después del tiempo de espera
+        if (!session) {
+          console.log('No hay sesión activa después de esperar, redirigiendo a login');
+          router.replace('/login');
+        }
+      }, 2000); // Esperar 2 segundos
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Si hay sesión pero no hay rol, intentar obtenerlo directamente
+    if (session && !role && session.user) {
+      console.log('Hay sesión pero no rol, intentando obtener rol para:', session.user.email);
+      // No bloquear el acceso, permitir que el hook use-auth maneje esto
+      return;
+    }
+    
+    // Solo redirigir si hay un rol definido y no es cliente
+    if (role && role !== 'cliente') {
       console.log('Redirigiendo a dashboard porque el rol es:', role);
       router.replace('/dashboard');
+    } else if (role === 'cliente') {
+      console.log('Usuario con rol cliente verificado correctamente');
     }
   }, [session, role, router]);
 

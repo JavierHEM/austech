@@ -4,13 +4,26 @@ import { NextResponse } from 'next/server';
 // Configurar el runtime para usar Node.js en lugar de Edge
 export const runtime = 'nodejs';
 // Configurar el tiempo máximo de ejecución (opcional)
-export const maxDuration = 10; // segundos
+export const maxDuration = 30; // segundos - aumentado para dar más tiempo
 
-// Crear un cliente de Supabase con credenciales de servicio
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+// Inicializar el cliente de Supabase con credenciales de servicio solo cuando se necesite
+// para evitar problemas de inicialización temprana
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Faltan variables de entorno para Supabase');
+  }
+  
+  
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
 
 export async function POST(request: Request) {
   // Verificar explícitamente la clave de servicio
@@ -23,6 +36,19 @@ export async function POST(request: Request) {
   }
   
   try {
+    // Inicializar el cliente de Supabase con la clave de servicio
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+
+    } catch (initError: any) {
+      console.error('Error al inicializar Supabase Admin:', initError.message);
+      return NextResponse.json(
+        { error: `Error de configuración: ${initError.message}` },
+        { status: 500 }
+      );
+    }
+    
     const requestData = await request.json();
     const { email, password, nombre_completo, rol_id, empresa_id, activo } = requestData;
     
@@ -34,19 +60,9 @@ export async function POST(request: Request) {
       );
     }
     
-    console.log('Creando usuario con datos:', { 
-      email, 
-      nombre_completo, 
-      rol_id, 
-      empresa_id: empresa_id || null 
-    });
-    
     // Crear usuario en Auth
-    console.log('Intentando crear usuario con Supabase Admin');
-    console.log('URL de Supabase:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.log('¿Tiene clave de servicio?', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-    
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
@@ -72,13 +88,13 @@ export async function POST(request: Request) {
       );
     }
     
-    console.log('Usuario creado exitosamente en Auth:', authData.user.id);
+
     
     // Esperar un momento para que el trigger tenga tiempo de ejecutarse
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     // Verificar si el usuario fue creado en la tabla usuarios por el trigger
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabase
       .from('usuarios')
       .select('*')
       .eq('id', authData.user.id)
@@ -86,9 +102,9 @@ export async function POST(request: Request) {
     
     // Si el usuario no fue creado automáticamente por el trigger, lo creamos manualmente
     if (userError) {
-      console.log('El trigger no creó el usuario automáticamente, creando manualmente');
+
       
-      const { error: insertError } = await supabaseAdmin
+      const { error: insertError } = await supabase
         .from('usuarios')
         .insert({
           id: authData.user.id,
@@ -104,7 +120,7 @@ export async function POST(request: Request) {
         console.error('Error al crear usuario manualmente:', insertError);
         
         // Intentar eliminar el usuario de Auth si falla la creación en la tabla usuarios
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        await supabase.auth.admin.deleteUser(authData.user.id);
         
         return NextResponse.json(
           { error: 'Error al crear el usuario en la base de datos' },
@@ -115,7 +131,7 @@ export async function POST(request: Request) {
       // El usuario fue creado por el trigger, pero podría necesitar actualización
       // para campos como empresa_id que no están en el trigger
       if (userData && (empresa_id || activo === false)) {
-        console.log('Usuario creado por trigger, actualizando campos adicionales');
+
         
         const updateData: any = {};
         
@@ -128,7 +144,7 @@ export async function POST(request: Request) {
         }
         
         if (Object.keys(updateData).length > 0) {
-          const { error: updateError } = await supabaseAdmin
+          const { error: updateError } = await supabase
             .from('usuarios')
             .update(updateData)
             .eq('id', authData.user.id);

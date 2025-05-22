@@ -4,18 +4,18 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DatePickerCustom } from '@/components/ui/date-picker-custom';
+
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -126,69 +126,25 @@ export default function ReporteUsuariosFilters({ onFilter, isLoading, empresaIdF
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Rol</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className={cn(
-                              "justify-between",
-                              !field.value && "text-muted-foreground"
-                            )}
-                            disabled={loadingOptions}
-                          >
-                            {loadingOptions
-                              ? "Cargando roles..."
-                              : field.value
-                                ? roles.find((role) => role.id === field.value)?.nombre || "Seleccionar rol"
-                                : "Seleccionar rol"}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
-                        <Command>
-                          <CommandInput placeholder="Buscar rol..." />
-                          <CommandEmpty>No se encontraron roles.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem
-                              value="todos"
-                              onSelect={() => {
-                                form.setValue("rol_id", null);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  !field.value ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              Todos los roles
-                            </CommandItem>
-                            {roles.map((role) => (
-                              <CommandItem
-                                key={role.id}
-                                value={role.nombre}
-                                onSelect={() => {
-                                  form.setValue("rol_id", role.id);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    field.value === role.id
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                {role.nombre}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                    <Select
+                      disabled={loadingOptions}
+                      onValueChange={(value) => field.onChange(value === "todos" ? null : parseInt(value))}
+                      value={field.value?.toString() || "todos"}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar rol" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos los roles</SelectItem>
+                        {roles.map((role) => (
+                          <SelectItem key={role.id} value={role.id.toString()}>
+                            {role.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -202,69 +158,25 @@ export default function ReporteUsuariosFilters({ onFilter, isLoading, empresaIdF
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Empresa</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                              disabled={loadingOptions}
-                            >
-                              {loadingOptions
-                                ? "Cargando empresas..."
-                                : field.value
-                                  ? empresas.find((empresa) => empresa.id === field.value)?.razon_social || "Seleccionar empresa"
-                                  : "Seleccionar empresa"}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-full p-0">
-                          <Command>
-                            <CommandInput placeholder="Buscar empresa..." />
-                            <CommandEmpty>No se encontraron empresas.</CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                value="todas"
-                                onSelect={() => {
-                                  form.setValue("empresa_id", null);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    !field.value ? "opacity-100" : "opacity-0"
-                                  )}
-                                />
-                                Todas las empresas
-                              </CommandItem>
-                              {empresas.map((empresa) => (
-                                <CommandItem
-                                  key={empresa.id}
-                                  value={empresa.razon_social}
-                                  onSelect={() => {
-                                    form.setValue("empresa_id", empresa.id);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      field.value === empresa.id
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                    )}
-                                  />
-                                  {empresa.razon_social}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                      <Select
+                        disabled={loadingOptions}
+                        onValueChange={(value) => field.onChange(value === "todas" ? null : parseInt(value))}
+                        value={field.value?.toString() || "todas"}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar empresa" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="todas">Todas las empresas</SelectItem>
+                          {empresas.map((empresa) => (
+                            <SelectItem key={empresa.id} value={empresa.id.toString()}>
+                              {empresa.razon_social}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -278,38 +190,14 @@ export default function ReporteUsuariosFilters({ onFilter, isLoading, empresaIdF
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha desde</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "dd/MM/yyyy", { locale: es })
-                            ) : (
-                              <span>Seleccionar fecha</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value || undefined}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("2000-01-01")
-                          }
-                          initialFocus
-                          locale={es}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                      <DatePickerCustom
+                        date={field.value || undefined}
+                        onDateChange={field.onChange}
+                        placeholder="Seleccionar fecha inicial"
+                        disabled={isLoading}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -322,38 +210,14 @@ export default function ReporteUsuariosFilters({ onFilter, isLoading, empresaIdF
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha hasta</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "dd/MM/yyyy", { locale: es })
-                            ) : (
-                              <span>Seleccionar fecha</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value || undefined}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("2000-01-01")
-                          }
-                          initialFocus
-                          locale={es}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                      <DatePickerCustom
+                        date={field.value || undefined}
+                        onDateChange={field.onChange}
+                        placeholder="Seleccionar fecha final"
+                        disabled={isLoading}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

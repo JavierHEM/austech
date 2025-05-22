@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { CustomDatePicker } from '@/components/ui/date-picker';
+import { DatePickerCustom } from '@/components/ui/date-picker-custom';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase-client';
 import { getEmpresasActivas } from '@/services/reporteService';
@@ -162,6 +162,24 @@ export default function ReporteAfiladosFilters({
     }
   }, [form.watch('empresa_id')]);
   
+  // Validar el rango de fechas
+  useEffect(() => {
+    const fechaDesde = form.watch('fecha_desde');
+    const fechaHasta = form.watch('fecha_hasta');
+    
+    if (fechaDesde && fechaHasta) {
+      const diffTime = Math.abs(fechaHasta.getTime() - fechaDesde.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 31) {
+        // Mostrar alerta
+        alert('El rango de fechas no puede ser mayor a 31 días. Por favor, seleccione un rango menor.');
+        // Resetear la fecha hasta para que el usuario seleccione un rango válido
+        form.setValue('fecha_hasta', undefined);
+      }
+    }
+  }, [form.watch('fecha_desde'), form.watch('fecha_hasta'), form]);
+  
   // Cargar tipos de sierra y tipos de afilado
   useEffect(() => {
     const loadCatalogos = async () => {
@@ -206,7 +224,7 @@ export default function ReporteAfiladosFilters({
       tipo_afilado_id: values.tipo_afilado_id && values.tipo_afilado_id !== 'all_tipos' ? parseInt(values.tipo_afilado_id) : null,
       fecha_desde: values.fecha_desde ? format(values.fecha_desde, 'yyyy-MM-dd') : null,
       fecha_hasta: values.fecha_hasta ? format(values.fecha_hasta, 'yyyy-MM-dd') : null,
-      estado_afilado: values.estado_afilado,
+      estado_afilado: values.estado_afilado !== undefined ? (values.estado_afilado ? 'completado' : 'pendiente') : undefined,
     };
     
     onFilter(filters);
@@ -320,7 +338,7 @@ export default function ReporteAfiladosFilters({
           {/* Fecha desde */}
           <FormItem>
             <FormLabel htmlFor="fecha_desde">Fecha desde</FormLabel>
-            <CustomDatePicker
+            <DatePickerCustom
               date={form.watch('fecha_desde') as Date | undefined}
               onDateChange={(date) => form.setValue('fecha_desde', date)}
               placeholder="Seleccione fecha inicial"
@@ -330,7 +348,7 @@ export default function ReporteAfiladosFilters({
           {/* Fecha hasta */}
           <FormItem>
             <FormLabel htmlFor="fecha_hasta">Fecha hasta</FormLabel>
-            <CustomDatePicker
+            <DatePickerCustom
               date={form.watch('fecha_hasta') as Date | undefined}
               onDateChange={(date) => form.setValue('fecha_hasta', date)}
               placeholder="Seleccione fecha final"

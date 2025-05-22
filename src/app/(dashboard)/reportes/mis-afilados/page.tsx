@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Download, Eye } from 'lucide-react';
+import { Download, Eye, FileSpreadsheet, Info } from "lucide-react";
 import * as XLSX from 'xlsx';
 
 import { Button } from '@/components/ui/button';
@@ -72,31 +72,61 @@ export default function MisAfiladosPage() {
 
   // Cargar reporte cuando se aplican filtros
   const handleFilter = async (filters: ReporteAfiladosPorClienteFilters) => {
-    if (!empresaId) {
-      setError('No tienes una empresa asignada.');
-      return;
-    }
-
     try {
       setIsLoading(true);
       setError(null);
       
-      // Asegurarse de que se use la empresa del usuario
-      const filtrosConEmpresa = {
+      // Validar que se hayan seleccionado fechas
+      if (!filters.fecha_desde || !filters.fecha_hasta) {
+        setError('Debe seleccionar un rango de fechas para generar el reporte (máximo 31 días)');
+        setReporteItems([]);
+        return;
+      }
+      
+      // Validar que el rango de fechas no sea mayor a 31 días
+      const fechaDesde = new Date(filters.fecha_desde as string);
+      const fechaHasta = new Date(filters.fecha_hasta as string);
+      const diffTime = Math.abs(fechaHasta.getTime() - fechaDesde.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 31) {
+        setError('El rango de fechas no puede ser mayor a 31 días');
+        setReporteItems([]);
+        return;
+      }
+      
+      // Asegurarse de que se use el ID de empresa del usuario si está disponible
+      let filtrosConEmpresa = { 
         ...filters,
-        empresa_id: empresaId
+        isExport: true // Obtener todos los resultados sin paginación
       };
       
-      setFiltrosAplicados(filtrosConEmpresa);
-      const data = await getReporteAfiladosPorCliente(filtrosConEmpresa);
-      setReporteItems(data);
-      
-      if (data.length === 0) {
-        setError('No se encontraron registros con los filtros aplicados.');
+      // Si tenemos datos de empresa del usuario, forzar ese valor
+      if (empresaId) {
+        filtrosConEmpresa.empresa_id = empresaId;
       }
-    } catch (error: any) {
-      console.error('Error al generar reporte:', error);
-      setError(error.message || 'Error al generar el reporte');
+      
+      console.log('Aplicando filtros para reporte:', filtrosConEmpresa);
+      
+      // Obtener datos del servicio
+      const result = await getReporteAfiladosPorCliente(filtrosConEmpresa);
+      
+      // Verificar si el resultado es un objeto paginado o un array
+      if (result && typeof result === 'object' && 'items' in result) {
+        // Es un objeto paginado (nuevo formato)
+        console.log(`Reporte cargado: ${result.items.length} registros encontrados de un total de ${result.total}`);
+        setReporteItems(result.items);
+      } else {
+        // Es un array (formato antiguo, por compatibilidad)
+        console.log(`Reporte cargado: ${(result as any).length} registros encontrados`);
+        setReporteItems(result as unknown as ReporteAfiladoItem[]);
+      }
+      
+      setFiltrosAplicados(filtrosConEmpresa);
+    } catch (err: any) {
+      console.error('Error al generar reporte:', err);
+      setError(err.message || 'Error al generar el reporte');
+      setReporteItems([]);
     } finally {
       setIsLoading(false);
     }
@@ -110,9 +140,28 @@ export default function MisAfiladosPage() {
       // Mostrar indicador de carga
       setIsLoading(true);
       
-      // Obtener todos los datos directamente del servicio con los filtros actuales
-      // Esto asegura que exportamos TODOS los registros, no solo los que se muestran en pantalla
-      const allData = await getReporteAfiladosPorCliente(filtrosAplicados);
+      // Agregar flag para indicar que queremos todos los resultados para exportar
+      const filtrosConExport = {
+        ...filtrosAplicados,
+        isExport: true // Obtener todos los resultados sin paginación
+      };
+      
+      // Obtener todos los datos para exportar
+      const result = await getReporteAfiladosPorCliente(filtrosConExport);
+      
+      // Verificar si el resultado es un objeto paginado o un array
+      let allData: ReporteAfiladoItem[] = [];
+      if (result && typeof result === 'object' && 'items' in result) {
+        // Es un objeto paginado (nuevo formato)
+        allData = result.items;
+      } else {
+        // Es un array (formato antiguo, por compatibilidad)
+        allData = result as unknown as ReporteAfiladoItem[];
+      }
+      
+      if (allData.length === 0) {
+        return;
+      }
       
       // Convertir los datos a formato para Excel
       const workbook = XLSX.utils.book_new();
@@ -126,7 +175,8 @@ export default function MisAfiladosPage() {
         'Fecha Salida': item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'N/A',
         'Estado': item.estado_afilado,
         'Fecha Registro': item.fecha_registro ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A',
-        'Activo Sierra': item.activo ? 'Sí' : 'No'
+        'Activo Sierra': item.activo ? 'Sí' : 'No',
+        'Observaciones': item.observaciones || ''
       }));
       
       // Crear hoja de Excel
@@ -144,7 +194,8 @@ export default function MisAfiladosPage() {
         { wch: 15 }, // Fecha Salida
         { wch: 10 }, // Estado
         { wch: 15 }, // Fecha Registro
-        { wch: 10 }  // Activo
+        { wch: 10 }, // Activo
+        { wch: 30 }  // Observaciones
       ];
       worksheet['!cols'] = columnWidths;
 
@@ -237,6 +288,7 @@ export default function MisAfiladosPage() {
                       <TableHead>Fecha Afilado</TableHead>
                       <TableHead>Fecha Salida</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead>Observaciones</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -261,6 +313,9 @@ export default function MisAfiladosPage() {
                             <Badge variant={item.estado_afilado === 'Activo' ? "default" : "secondary"}>
                               {item.estado_afilado}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate" title={item.observaciones || ''}>
+                            {item.observaciones || '-'}
                           </TableCell>
                           <TableCell className="text-right">
                             <TooltipProvider>

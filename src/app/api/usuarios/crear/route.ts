@@ -6,13 +6,26 @@ import { createClient } from '@supabase/supabase-js';
 // Configurar el runtime para usar Node.js en lugar de Edge
 export const runtime = 'nodejs';
 // Configurar el tiempo máximo de ejecución (opcional)
-export const maxDuration = 10; // segundos
+export const maxDuration = 30; // segundos - aumentado para dar más tiempo
 
-// Crear un cliente de Supabase con credenciales de servicio
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
+// Inicializar el cliente de Supabase con credenciales de servicio solo cuando se necesite
+// para evitar problemas de inicialización temprana
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Faltan variables de entorno para Supabase');
+  }
+  
+  
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+}
 
 export async function POST(request: Request) {
   // Verificar explícitamente la clave de servicio
@@ -25,17 +38,23 @@ export async function POST(request: Request) {
   }
   
   try {
+    // Inicializar el cliente de Supabase con la clave de servicio
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+
+    } catch (initError: any) {
+      console.error('Error al inicializar Supabase Admin:', initError.message);
+      return NextResponse.json(
+        { error: `Error de configuración: ${initError.message}` },
+        { status: 500 }
+      );
+    }
+    
     const requestData = await request.json();
     const { email, password, nombre_completo, rol_id, empresa_id, activo } = requestData;
     
-    console.log('Datos recibidos para crear usuario:', { 
-      email, 
-      nombre_completo, 
-      rol_id, 
-      empresa_id, 
-      activo 
-    });
-    
+
     // Validaciones básicas
     if (!email || !password || !nombre_completo || !rol_id) {
       return NextResponse.json(
@@ -57,16 +76,13 @@ export async function POST(request: Request) {
     if (rol_id === 3 && empresa_id) {
       // Para usuarios cliente, asegurarse de que empresa_id sea un número
       empresaIdValue = typeof empresa_id === 'string' ? parseInt(empresa_id) : empresa_id;
-      console.log('Procesando empresa_id:', empresaIdValue, 'para usuario cliente');
+
     }
     
     // Usar el cliente admin para crear el usuario
-    console.log('Intentando crear usuario con Supabase Admin');
-    console.log('URL de Supabase:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.log('¿Tiene clave de servicio?', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
-    
+
     // Crear usuario en Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: email,
       password: password,
       email_confirm: true,
@@ -95,20 +111,16 @@ export async function POST(request: Request) {
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Verificar si el usuario fue creado en la tabla usuarios
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabase
       .from('usuarios')
       .select('*')
       .eq('id', authData.user.id)
       .single();
     
-    console.log('Verificación de usuario creado:', userData ? 'Encontrado' : 'No encontrado');
-    if (userData) {
-      console.log('Datos actuales del usuario:', userData);
-    }
-    
+
     // Siempre actualizar el usuario para asegurarnos de que tenga los datos correctos
     // especialmente el empresa_id para usuarios cliente
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from('usuarios')
       .upsert({
         id: authData.user.id,
@@ -120,7 +132,6 @@ export async function POST(request: Request) {
         creado_en: new Date().toISOString()
       });
       
-    console.log('Resultado de la actualización:', updateError ? 'Error' : 'Éxito');
     if (updateError) {
       console.error('Error al actualizar usuario:', updateError);
       return NextResponse.json(
@@ -130,17 +141,13 @@ export async function POST(request: Request) {
     }
     
     // Verificar nuevamente después de la actualización
-    const { data: updatedUserData, error: verifyError } = await supabaseAdmin
+    const { data: updatedUserData, error: verifyError } = await supabase
       .from('usuarios')
       .select('*')
       .eq('id', authData.user.id)
       .single();
       
-    console.log('Usuario después de actualización:', updatedUserData || 'No encontrado');
-    if (updatedUserData) {
-      console.log('Empresa ID final:', updatedUserData.empresa_id);
-    }
-    
+
     return NextResponse.json({
       success: true,
       data: authData.user
