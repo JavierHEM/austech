@@ -14,7 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DatePickerCustom } from '@/components/ui/date-picker-custom';
+import { DatePickerAlt } from '@/components/ui/date-picker-alt';
 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -191,8 +191,8 @@ export default function ReporteUsuariosFilters({ onFilter, isLoading, empresaIdF
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha desde</FormLabel>
                     <FormControl>
-                      <DatePickerCustom
-                        date={field.value || undefined}
+                      <DatePickerAlt
+                        date={field.value || null}
                         onDateChange={field.onChange}
                         placeholder="Seleccionar fecha inicial"
                         disabled={isLoading}
@@ -211,8 +211,8 @@ export default function ReporteUsuariosFilters({ onFilter, isLoading, empresaIdF
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha hasta</FormLabel>
                     <FormControl>
-                      <DatePickerCustom
-                        date={field.value || undefined}
+                      <DatePickerAlt
+                        date={field.value || null}
                         onDateChange={field.onChange}
                         placeholder="Seleccionar fecha final"
                         disabled={isLoading}

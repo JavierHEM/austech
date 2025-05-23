@@ -21,18 +21,28 @@ export default function ClienteLayout({
   useEffect(() => {
     console.log('Verificando acceso a dashboard de cliente. Sesión:', !!session, 'Rol:', role);
     
+    // Usar una variable para controlar si el componente sigue montado
+    let isMounted = true;
+    
     // Si no hay sesión, esperar un momento antes de redirigir
     // Esto da tiempo a que la sesión se cargue completamente
     if (!session) {
       const timer = setTimeout(() => {
-        // Solo redirigir si todavía no hay sesión después del tiempo de espera
-        if (!session) {
+        // Solo redirigir si todavía no hay sesión después del tiempo de espera y el componente sigue montado
+        if (!session && isMounted) {
           console.log('No hay sesión activa después de esperar, redirigiendo a login');
-          router.replace('/login');
+          try {
+            router.replace('/login');
+          } catch (error) {
+            console.error('Error al redirigir a login:', error);
+          }
         }
       }, 2000); // Esperar 2 segundos
       
-      return () => clearTimeout(timer);
+      return () => {
+        isMounted = false;
+        clearTimeout(timer);
+      };
     }
     
     // Si hay sesión pero no hay rol, intentar obtenerlo directamente
@@ -43,12 +53,20 @@ export default function ClienteLayout({
     }
     
     // Solo redirigir si hay un rol definido y no es cliente
-    if (role && role !== 'cliente') {
+    if (role && role !== 'cliente' && isMounted) {
       console.log('Redirigiendo a dashboard porque el rol es:', role);
-      router.replace('/dashboard');
+      try {
+        router.replace('/dashboard');
+      } catch (error) {
+        console.error('Error al redirigir a dashboard:', error);
+      }
     } else if (role === 'cliente') {
       console.log('Usuario con rol cliente verificado correctamente');
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [session, role, router]);
 
   const handleSignOut = async () => {

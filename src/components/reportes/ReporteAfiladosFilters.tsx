@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DatePickerCustom } from '@/components/ui/date-picker-custom';
+import { DatePickerAlt } from '@/components/ui/date-picker-alt';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase-client';
 import { getEmpresasActivas } from '@/services/reporteService';
@@ -43,9 +43,29 @@ const formSchema = z.object({
   sucursal_id: z.string().optional(),
   tipo_sierra_id: z.string().optional(),
   tipo_afilado_id: z.string().optional(),
-  fecha_desde: z.date().optional(),
-  fecha_hasta: z.date().optional(),
+  fecha_desde: z.date({ required_error: 'La fecha inicial es obligatoria' }).nullable(),
+  fecha_hasta: z.date({ required_error: 'La fecha final es obligatoria' }).nullable(),
   estado_afilado: z.boolean().optional(),
+}).refine((data) => {
+  // Validar que ambas fechas estén presentes
+  if (!data.fecha_desde || !data.fecha_hasta) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Debe seleccionar ambas fechas para generar el informe',
+  path: ['fecha_hasta']
+}).refine((data) => {
+  // Validar que el rango no supere los 31 días
+  if (data.fecha_desde && data.fecha_hasta) {
+    const diffTime = Math.abs(data.fecha_hasta.getTime() - data.fecha_desde.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays <= 31;
+  }
+  return true;
+}, {
+  message: 'El rango de fechas no puede superar los 31 días',
+  path: ['fecha_hasta']
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -78,8 +98,8 @@ export default function ReporteAfiladosFilters({
       sucursal_id: '',
       tipo_sierra_id: '',
       tipo_afilado_id: '',
-      fecha_desde: undefined,
-      fecha_hasta: undefined,
+      fecha_desde: null,
+      fecha_hasta: null,
       estado_afilado: undefined, // undefined significa que no se aplica filtro para el estado del afilado
     },
     shouldUnregister: false,
@@ -162,7 +182,7 @@ export default function ReporteAfiladosFilters({
     }
   }, [form.watch('empresa_id')]);
   
-  // Validar el rango de fechas
+  // Validar el rango de fechas cuando cambian las fechas (feedback inmediato)
   useEffect(() => {
     const fechaDesde = form.watch('fecha_desde');
     const fechaHasta = form.watch('fecha_hasta');
@@ -175,7 +195,7 @@ export default function ReporteAfiladosFilters({
         // Mostrar alerta
         alert('El rango de fechas no puede ser mayor a 31 días. Por favor, seleccione un rango menor.');
         // Resetear la fecha hasta para que el usuario seleccione un rango válido
-        form.setValue('fecha_hasta', undefined);
+        form.setValue('fecha_hasta', null);
       }
     }
   }, [form.watch('fecha_desde'), form.watch('fecha_hasta'), form]);
@@ -216,6 +236,23 @@ export default function ReporteAfiladosFilters({
 
   // Manejar envío del formulario
   const onSubmit = (values: FormValues) => {
+    // Validar que ambas fechas estén presentes
+    if (!values.fecha_desde || !values.fecha_hasta) {
+      alert('Debe seleccionar ambas fechas para generar el informe');
+      return;
+    }
+    
+    // Validar que el rango no supere los 31 días
+    if (values.fecha_desde && values.fecha_hasta) {
+      const diffTime = Math.abs(values.fecha_hasta.getTime() - values.fecha_desde.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > 31) {
+        alert('El rango de fechas no puede superar los 31 días');
+        return;
+      }
+    }
+    
     // Convertir los valores del formulario al formato esperado por el servicio
     const filters: ReporteAfiladosPorClienteFilters = {
       empresa_id: values.empresa_id ? parseInt(values.empresa_id) : 0, // Valor por defecto para evitar error de tipo
@@ -338,8 +375,8 @@ export default function ReporteAfiladosFilters({
           {/* Fecha desde */}
           <FormItem>
             <FormLabel htmlFor="fecha_desde">Fecha desde</FormLabel>
-            <DatePickerCustom
-              date={form.watch('fecha_desde') as Date | undefined}
+            <DatePickerAlt
+              date={form.watch('fecha_desde') as Date | null}
               onDateChange={(date) => form.setValue('fecha_desde', date)}
               placeholder="Seleccione fecha inicial"
             />
@@ -348,8 +385,8 @@ export default function ReporteAfiladosFilters({
           {/* Fecha hasta */}
           <FormItem>
             <FormLabel htmlFor="fecha_hasta">Fecha hasta</FormLabel>
-            <DatePickerCustom
-              date={form.watch('fecha_hasta') as Date | undefined}
+            <DatePickerAlt
+              date={form.watch('fecha_hasta') as Date | null}
               onDateChange={(date) => form.setValue('fecha_hasta', date)}
               placeholder="Seleccione fecha final"
             />

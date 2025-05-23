@@ -4,9 +4,19 @@
 
 [build.environment]
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  NODE_VERSION = "18"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Configuración específica para funciones
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@supabase/supabase-js"]
+
+# Aumentar el tiempo de timeout para funciones API
+[functions."api/*"]
+  timeout = 30
 
 # Configuración de redirecciones para SPA
 [[redirects]]

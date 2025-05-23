@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { DatePickerCustom } from '@/components/ui/date-picker-custom';
+import { DatePickerAlt } from '@/components/ui/date-picker-alt';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Switch } from '@/components/ui/switch';
@@ -298,8 +298,8 @@ export function ClienteReporteFilters({
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha Desde</FormLabel>
                     <FormControl>
-                      <DatePickerCustom
-                        date={field.value || undefined}
+                      <DatePickerAlt
+                        date={field.value || null}
                         onDateChange={field.onChange}
                         placeholder="Seleccionar fecha inicial"
                         disabled={loading}
@@ -318,8 +318,8 @@ export function ClienteReporteFilters({
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha Hasta</FormLabel>
                     <FormControl>
-                      <DatePickerCustom
-                        date={field.value || undefined}
+                      <DatePickerAlt
+                        date={field.value || null}
                         onDateChange={field.onChange}
                         placeholder="Seleccionar fecha final"
                         disabled={loading}

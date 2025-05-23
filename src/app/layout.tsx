@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import '@/styles/datepicker.css'
+import '@/styles/datepicker-custom.css'
 import { Providers } from './providers'
 import { SessionKeepAlive } from '@/components/SessionKeepAlive'
 
