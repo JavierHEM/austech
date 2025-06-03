@@ -75,7 +75,7 @@ export default function SucursalForm({ sucursalId, isEditing = false, empresaId 
     };
 
     fetchEmpresas();
-  }, [supabase, toast]);
+  }, [toast]); // supabase es una constante externa, no es necesario incluirla como dependencia
 
   // Cargar datos de la sucursal si estamos en modo edición
   useEffect(() => {
@@ -118,7 +118,7 @@ export default function SucursalForm({ sucursalId, isEditing = false, empresaId 
     } else {
       setInitialLoading(false);
     }
-  }, [isEditing, sucursalId, form, toast, supabase, empresaId]);
+  }, [isEditing, sucursalId, form, toast, empresaId]); // supabase es una constante externa, no es necesario incluirla como dependencia
 
   const onSubmit = async (data: SucursalFormValues) => {
     // Si se proporcionó un ID de empresa, usarlo en lugar del valor del formulario

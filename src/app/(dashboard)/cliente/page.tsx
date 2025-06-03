@@ -372,16 +372,16 @@ export default function ClienteDashboardPage() {
         }
         
         // Convertir a formato para gráfico
-        const ultimosMesesArray = afiladosDataTemp.mesesClaves.map(({clave, fecha}: {clave: string, fecha: Date}) => ({
+        const ultimosMesesArray = afiladosDataTemp?.mesesClaves?.map(({clave, fecha}: {clave: string, fecha: Date}) => ({
           name: `${fecha.toLocaleString('es', { month: 'short' })} ${fecha.getFullYear()}`,
-          cantidad: afiladosDataTemp.porMes[clave] || 0,
+          cantidad: afiladosDataTemp?.porMes?.[clave] || 0,
           mes: fecha.toLocaleString('es', { month: 'short' }),
           año: fecha.getFullYear()
-        }));
+        })) || [];
         
         // Agrupar afilados por tipo
         const afiladosPorTipo: Record<string, number> = {};
-        afiladosDataTemp.muestra.forEach((afilado: any) => {
+        afiladosDataTemp?.muestra?.forEach((afilado: any) => {
           // Asegurarnos de que tipos_afilado es un objeto y no un array
           const tipoNombre = typeof afilado.tipos_afilado === 'object' && afilado.tipos_afilado !== null
             ? (afilado.tipos_afilado as any).nombre || 'Sin tipo'

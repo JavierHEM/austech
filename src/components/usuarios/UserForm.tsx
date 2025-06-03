@@ -243,7 +243,7 @@ export default function UserForm({ userId, isEditing = false }: UserFormProps) {
     } else {
       setInitialLoading(false);
     }
-  }, [isEditing, userId, form, toast, supabase]);
+  }, [isEditing, userId, form, toast]); // supabase es una constante externa, no es necesario incluirla como dependencia
 
   const onSubmit = async (data: UserFormData) => {
     setLoading(true);
