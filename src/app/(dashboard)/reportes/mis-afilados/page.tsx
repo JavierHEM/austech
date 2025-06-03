@@ -112,10 +112,12 @@ export default function MisAfiladosPage() {
       const result = await getReporteAfiladosPorCliente(filtrosConEmpresa);
       
       // Verificar si el resultado es un objeto paginado o un array
-      if (result && typeof result === 'object' && 'items' in result) {
-        // Es un objeto paginado (nuevo formato)
-        console.log(`Reporte cargado: ${result.items.length} registros encontrados de un total de ${result.total}`);
-        setReporteItems(result.items);
+      if (result && typeof result === 'object' && 'data' in result && Array.isArray(result.data) && 'count' in result) {
+        // Es un objeto paginado (formato actual)
+        // Usar tipado más específico para evitar errores de TypeScript
+        const paginatedResult = result as { data: ReporteAfiladoItem[], count: number };
+        console.log(`Reporte cargado: ${paginatedResult.data.length} registros encontrados de un total de ${paginatedResult.count}`);
+        setReporteItems(paginatedResult.data);
       } else {
         // Es un array (formato antiguo, por compatibilidad)
         console.log(`Reporte cargado: ${(result as any).length} registros encontrados`);
@@ -151,9 +153,10 @@ export default function MisAfiladosPage() {
       
       // Verificar si el resultado es un objeto paginado o un array
       let allData: ReporteAfiladoItem[] = [];
-      if (result && typeof result === 'object' && 'items' in result) {
-        // Es un objeto paginado (nuevo formato)
-        allData = result.items;
+      if (result && typeof result === 'object' && 'data' in result && Array.isArray(result.data)) {
+        // Es un objeto paginado (formato actual)
+        const paginatedResult = result as { data: ReporteAfiladoItem[], count: number };
+        allData = paginatedResult.data;
       } else {
         // Es un array (formato antiguo, por compatibilidad)
         allData = result as unknown as ReporteAfiladoItem[];

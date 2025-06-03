@@ -67,23 +67,28 @@ export const handleFilter = async ({
       }
       
       // Obtener los datos del reporte
-      const result = await getReporteAfiladosPorCliente({
-        page: currentPage,
-        pageSize,
-        fecha_desde: filtrosAplicados?.fecha_desde || undefined,
-        fecha_hasta: filtrosAplicados?.fecha_hasta || undefined,
-        sucursal_id: filtrosAplicados?.sucursal_id || undefined,
-        tipo_sierra_id: filtrosAplicados?.tipo_sierra_id || undefined,
-        tipo_afilado_id: filtrosAplicados?.tipo_afilado_id || undefined,
+      // Separar los filtros de los parámetros de paginación
+      const filtros: ReporteAfiladosPorClienteFilters = {
+        fecha_desde: filtrosAplicados?.fecha_desde || null,
+        fecha_hasta: filtrosAplicados?.fecha_hasta || null,
+        sucursal_id: filtrosAplicados?.sucursal_id || null,
+        tipo_sierra_id: filtrosAplicados?.tipo_sierra_id || null,
+        tipo_afilado_id: filtrosAplicados?.tipo_afilado_id || null,
         empresa_id: empresaIdParam,
-        estado_afilado: filtrosAplicados?.estado_afilado || undefined,
-      });
+        estado_afilado: filtrosAplicados?.estado_afilado,
+        activo: true // Valor por defecto para activo
+      };
       
-      setReporteItems(result.items || []);
+      const result = await getReporteAfiladosPorCliente(filtros, currentPage, pageSize);
+      
+      // Actualizar con la nueva estructura de datos { data, count }
+      setReporteItems(result.data || []);
       setFiltrosAplicados(filtrosAplicados);
-      setCurrentPage(result.page);
-      setTotalPages(result.totalPages);
-      setTotalItems(result.total);
+      setCurrentPage(currentPage);
+      // Calcular el total de páginas basado en el recuento y tamaño de página
+      const calculatedTotalPages = Math.ceil((result.count || 0) / pageSize);
+      setTotalPages(calculatedTotalPages);
+      setTotalItems(result.count || 0);
     } catch (error: any) {
       console.error('Error al obtener el reporte:', error);
       setReporteError(error.message || 'Error al obtener el reporte');
