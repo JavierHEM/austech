@@ -45,7 +45,7 @@ const formSchema = z.object({
   tipo_afilado_id: z.string().optional(),
   fecha_desde: z.date({ required_error: 'La fecha inicial es obligatoria' }).nullable(),
   fecha_hasta: z.date({ required_error: 'La fecha final es obligatoria' }).nullable(),
-  estado_afilado: z.boolean().optional(),
+  estado: z.boolean().optional(), // Estado del afilado (true = Activo, false = Inactivo)
 }).refine((data) => {
   // Validar que ambas fechas estén presentes
   if (!data.fecha_desde || !data.fecha_hasta) {
@@ -100,7 +100,7 @@ export default function ReporteAfiladosFilters({
       tipo_afilado_id: '',
       fecha_desde: null,
       fecha_hasta: null,
-      estado_afilado: undefined, // undefined significa que no se aplica filtro para el estado del afilado
+      estado: undefined // undefined significa que no se aplica filtro para el estado del afilado
     },
     shouldUnregister: false,
   });
@@ -261,7 +261,8 @@ export default function ReporteAfiladosFilters({
       tipo_afilado_id: values.tipo_afilado_id && values.tipo_afilado_id !== 'all_tipos' ? parseInt(values.tipo_afilado_id) : null,
       fecha_desde: values.fecha_desde ? format(values.fecha_desde, 'yyyy-MM-dd') : null,
       fecha_hasta: values.fecha_hasta ? format(values.fecha_hasta, 'yyyy-MM-dd') : null,
-      estado_afilado: values.estado_afilado !== undefined ? (values.estado_afilado ? 'completado' : 'pendiente') : undefined,
+      activo: true, // Por defecto, siempre queremos sierras activas
+      estado: values.estado, // Usar el campo estado (booleano) para filtrar por el estado del afilado
     };
     
     onFilter(filters);
@@ -396,20 +397,20 @@ export default function ReporteAfiladosFilters({
           
           {/* Estado del afilado */}
           <FormItem>
-            <FormLabel htmlFor="estado_afilado">Estado</FormLabel>
+            <FormLabel htmlFor="estado">Estado</FormLabel>
             <Select 
               disabled={isLoading} 
               onValueChange={(value) => {
                 if (value === "todos") {
-                  form.setValue('estado_afilado', undefined);
+                  form.setValue('estado', undefined);
                 } else {
-                  form.setValue('estado_afilado', value === "true");
+                  form.setValue('estado', value === "true");
                 }
               }} 
               value={
-                form.watch('estado_afilado') === undefined
+                form.watch('estado') === undefined
                   ? "todos"
-                  : form.watch('estado_afilado') === true
+                  : form.watch('estado') === true
                   ? "true"
                   : "false"
               }

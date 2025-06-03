@@ -114,6 +114,9 @@ export default function Navbar() {
                   <NavLink href="/bajas-masivas" current={pathname ? pathname.startsWith('/bajas-masivas') : false}>
                     Bajas Masivas
                   </NavLink>
+                  <NavLink href="/reportes/nuevo-afilados-por-cliente" current={pathname ? pathname.startsWith('/reportes/nuevo-afilados-por-cliente') : false}>
+                    Reportes
+                  </NavLink>
                 </>
               )}
               

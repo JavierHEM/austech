@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setRole(null);
     } catch (error) {
-      console.error('Error al cerrar sesión:', error);
+      // Error al cerrar sesión
     }
   };
 
@@ -46,19 +46,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Función para obtener la sesión actual
     const getSession = async () => {
       try {
-        console.log('Verificando sesión de usuario...');
-        
         // Obtener la sesión actual
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Error al obtener sesión:', error.message);
+          // Error al obtener sesión
           setLoading(false);
           return;
         }
         
         if (currentSession) {
-          console.log('Sesión encontrada, actualizando estado...');
           setSession(currentSession);
           setUser(currentSession.user);
           
@@ -72,20 +69,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .single();
                 
               if (userError) {
-                console.error('Error al obtener rol del usuario:', userError.message);
+                // Error al obtener rol del usuario
               } else if (userData) {
-                console.log('Rol del usuario:', userData.rol);
                 setRole(userData.rol);
               }
             } catch (roleError) {
-              console.error('Error al consultar rol:', roleError);
+              // Error al consultar rol
             }
           }
-        } else {
-          console.log('No hay sesión activa');
         }
       } catch (error) {
-        console.error('Error general al verificar sesión:', error);
+        // Error general al verificar sesión
       } finally {
         setLoading(false);
       }
@@ -96,12 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Suscribirse a cambios en la autenticación
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log('Evento de autenticación:', event);
-      
       // Manejar los diferentes eventos de autenticación
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (newSession) {
-          console.log('Usuario autenticado o token renovado');
           setSession(newSession);
           setUser(newSession.user);
           
@@ -115,23 +106,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .single();
                 
               if (userError) {
-                console.error('Error al obtener rol del usuario:', userError.message);
+                // Error al obtener rol del usuario
               } else if (userData) {
-                console.log('Rol del usuario actualizado:', userData.rol);
                 setRole(userData.rol);
               }
             } catch (roleError) {
-              console.error('Error al consultar rol:', roleError);
+              // Error al consultar rol
             }
           }
         }
       } else if (event === 'SIGNED_OUT') {
-        console.log('Usuario cerró sesión');
         setSession(null);
         setUser(null);
         setRole(null);
       } else if (event === 'USER_UPDATED') {
-        console.log('Información de usuario actualizada');
         if (newSession) {
           setSession(newSession);
           setUser(newSession.user);

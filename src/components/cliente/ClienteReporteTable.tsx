@@ -173,7 +173,11 @@ export function ClienteReporteTable({
                   <TableCell>{item.sucursal}</TableCell>
                   <TableCell>{item.fecha_afilado}</TableCell>
                   <TableCell>{item.fecha_salida}</TableCell>
-                  <TableCell>{item.estado}</TableCell>
+                  <TableCell>
+                    {/* Log para depuración */}
+                    {(() => { console.log('Valor de estado en UI:', item.id, item.estado); return null; })()}
+                    {item.estado}
+                  </TableCell>
                   <TableCell className="max-w-[200px] truncate">
                     {item.observaciones || '-'}
                   </TableCell>

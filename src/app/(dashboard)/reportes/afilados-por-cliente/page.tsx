@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertCircle } from 'lucide-react';
 
 import ReporteAfiladosFilters from '@/components/reportes/ReporteAfiladosFilters';
-import { getReporteAfiladosPorCliente, ReporteAfiladosPorClienteFilters, ReporteAfiladoItem } from '@/services/reporteService';
+import { getReporteAfiladosPorCliente, getAllReporteAfiladosPorCliente, ReporteAfiladosPorClienteFilters, ReporteAfiladoItem } from '@/services/reporteService';
 import ClienteRestriction from '@/components/auth/ClienteRestriction';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -107,23 +107,22 @@ export default function ReporteAfiladosPorClientePage() {
       const offset = (page - 1) * pageSize;
       
       // Obtener datos del reporte con paginación
-      const result = await getReporteAfiladosPorCliente({
-        ...filters,
-        pageSize: pageSize,
-        page: page
-      });
+      console.log('Solicitando reporte con filtros:', filters, 'página:', page, 'tamaño:', pageSize);
+      const result = await getReporteAfiladosPorCliente(filters, page, pageSize);
       
-      // Verificar si el resultado es un objeto paginado o un array
-      if (result && typeof result === 'object' && 'items' in result) {
-        // Es un objeto paginado (nuevo formato)
-        setReporteItems(result.items);
-        setTotalItems(result.total || 0);
-        setTotalPages(Math.ceil((result.total || 0) / pageSize));
+      console.log('Resultado del reporte:', result);
+      
+      // La función ahora devuelve { data: ReporteAfiladoItem[], count: number }
+      if (result && 'data' in result && 'count' in result) {
+        setReporteItems(result.data);
+        setTotalItems(result.count);
+        setTotalPages(Math.ceil(result.count / pageSize));
       } else {
-        // Es un array (formato antiguo, por compatibilidad)
-        setReporteItems(result as unknown as ReporteAfiladoItem[]);
-        setTotalItems((result as unknown as ReporteAfiladoItem[]).length);
-        setTotalPages(1);
+        console.error('Formato de respuesta inesperado:', result);
+        setReporteItems([]);
+        setTotalItems(0);
+        setTotalPages(0);
+        setError('Error en el formato de respuesta del servidor');
       }
     } catch (error: any) {
       console.error('Error al obtener reporte:', error);
@@ -142,24 +141,17 @@ export default function ReporteAfiladosPorClientePage() {
       // Mostrar indicador de carga
       setIsLoading(true);
       
-      // Agregar flag para indicar que queremos todos los resultados para exportar
-      const filtrosConExport = {
-        ...filtrosAplicados,
-        isExport: true // Obtener todos los resultados sin paginación
-      };
+      console.log('Exportando todos los registros con filtros:', filtrosAplicados);
       
-      // Obtener todos los datos directamente del servicio con los filtros actuales
-      // Esto asegura que exportamos TODOS los registros, no solo los que están en la página actual
-      const result = await getReporteAfiladosPorCliente(filtrosConExport);
+      // Usar getAllReporteAfiladosPorCliente para obtener TODOS los registros sin paginación
+      // Esta función está diseñada específicamente para la exportación a Excel
+      const allData = await getAllReporteAfiladosPorCliente(filtrosAplicados);
       
-      // Verificar si el resultado es un objeto paginado o un array
-      let allData: ReporteAfiladoItem[] = [];
-      if (result && typeof result === 'object' && 'items' in result) {
-        // Es un objeto paginado (nuevo formato)
-        allData = result.items;
-      } else {
-        // Es un array (formato antiguo, por compatibilidad)
-        allData = result as unknown as ReporteAfiladoItem[];
+      console.log(`Exportando ${allData.length} registros totales`);
+      
+      if (!allData || allData.length === 0) {
+        setError('No hay datos para exportar');
+        return;
       }
       
       if (allData.length === 0) {
@@ -168,16 +160,16 @@ export default function ReporteAfiladosPorClientePage() {
       }
       
       // Formatear datos para Excel
-      const dataForExcel = allData.map(item => ({
+      const dataForExcel = allData.map((item: ReporteAfiladoItem) => ({
         'Empresa': item.empresa,
         'Sucursal': item.sucursal,
         'Tipo Sierra': item.tipo_sierra,
         'Código Sierra': item.codigo_sierra,
         'Tipo Afilado': item.tipo_afilado,
-        'Fecha Afilado': item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
-        'Fecha Salida': item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'N/A',
-        'Estado': item.estado_afilado,
-        'Fecha Registro': item.fecha_registro ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A',
+        'Fecha Afilado': item.fecha_afilado && !isNaN(new Date(item.fecha_afilado).getTime()) ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+        'Fecha Salida': item.fecha_salida === 'Pendiente' ? 'Pendiente' : (item.fecha_salida && !isNaN(new Date(item.fecha_salida).getTime())) ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'N/A',
+        'Estado': item.estado,
+        'Fecha Registro': item.fecha_registro && !isNaN(new Date(item.fecha_registro).getTime()) ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A',
         'Activo Sierra': item.activo ? 'Sí' : 'No',
         'Observaciones': item.observaciones || ''
       }));
@@ -338,14 +330,14 @@ export default function ReporteAfiladosPorClientePage() {
                             <TableCell>{item.codigo_sierra}</TableCell>
                             <TableCell>{item.tipo_afilado}</TableCell>
                             <TableCell>
-                              {item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                              {item.fecha_afilado && !isNaN(new Date(item.fecha_afilado).getTime()) ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                             </TableCell>
                             <TableCell>
-                              {item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                              {item.fecha_salida === 'Pendiente' ? 'Pendiente' : (item.fecha_salida && !isNaN(new Date(item.fecha_salida).getTime())) ? format(new Date(item.fecha_salida), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                             </TableCell>
                             <TableCell>
-                              <Badge variant={item.estado_afilado === 'Activo' ? "default" : "secondary"}>
-                                {item.estado_afilado}
+                              <Badge variant={item.estado === 'Activo' ? "default" : "secondary"}>
+                                {item.estado}
                               </Badge>
                             </TableCell>
                             <TableCell className="max-w-[200px] truncate" title={item.observaciones || ''}>
@@ -461,9 +453,11 @@ export default function ReporteAfiladosPorClientePage() {
                         <div className="space-y-2">
                           {Object.entries(
                             reporteItems.reduce((acc: Record<string, number>, item: ReporteAfiladoItem) => {
-                              acc[item.empresa] = (acc[item.empresa] || 0) + 1;
+                              // Asegurar que item.empresa sea una string válida
+                              const empresaNombre = item.empresa || 'Sin empresa';
+                              acc[empresaNombre] = (acc[empresaNombre] || 0) + 1;
                               return acc;
-                            }, {})
+                            }, {} as Record<string, number>)
                           ).map(([empresa, count]) => (
                             <div key={empresa} className="flex justify-between items-center">
                               <span>{empresa}</span>
@@ -574,25 +568,25 @@ export default function ReporteAfiladosPorClientePage() {
                 <div>
                   <h4 className="text-sm font-medium">Fecha Afilado</h4>
                   <p className="text-sm">
-                    {selectedItem.fecha_afilado ? format(new Date(selectedItem.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                    {selectedItem.fecha_afilado && !isNaN(new Date(selectedItem.fecha_afilado).getTime()) ? format(new Date(selectedItem.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                   </p>
                 </div>
                 <div>
                   <h4 className="text-sm font-medium">Fecha Salida</h4>
                   <p className="text-sm">
-                    {selectedItem.fecha_salida ? format(new Date(selectedItem.fecha_salida), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                    {selectedItem.fecha_salida === 'Pendiente' ? 'Pendiente' : (selectedItem.fecha_salida && !isNaN(new Date(selectedItem.fecha_salida).getTime())) ? format(new Date(selectedItem.fecha_salida), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                   </p>
                 </div>
                 <div>
                   <h4 className="text-sm font-medium">Estado</h4>
-                  <Badge variant={selectedItem.estado_afilado === 'Activo' ? "default" : "secondary"}>
-                    {selectedItem.estado_afilado}
+                  <Badge variant={selectedItem.estado === 'Activo' ? "default" : "secondary"}>
+                    {selectedItem.estado}
                   </Badge>
                 </div>
                 <div>
                   <h4 className="text-sm font-medium">Fecha Registro</h4>
                   <p className="text-sm">
-                    {selectedItem.fecha_registro ? format(new Date(selectedItem.fecha_registro), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                    {selectedItem.fecha_registro && !isNaN(new Date(selectedItem.fecha_registro).getTime()) ? format(new Date(selectedItem.fecha_registro), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
                   </p>
                 </div>
                 <div>

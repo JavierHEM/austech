@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { ClienteStats, datosEjemplo, fetchClienteStats, getEmpresaIdFromUser } from '@/services/clienteService';
+import { ClienteStats, datosEjemplo, fetchClienteStats, getEmpresaIdFromUser, checkSupabaseConnection } from '@/services/clienteService';
 import { EstadisticasCard } from './EstadisticasCard';
 import { UltimosAfilados } from './UltimosAfilados';
 import { ProximosAfilados } from './ProximosAfilados';
@@ -44,6 +44,19 @@ export function ClienteDashboard() {
           return;
         }
 
+        // Verificar la conexión con Supabase antes de continuar
+        const conexionOk = await checkSupabaseConnection();
+        if (!conexionOk) {
+          console.log('No hay conexión con Supabase, usando datos de ejemplo');
+          toast({
+            title: 'Sin conexión a la base de datos',
+            description: 'Mostrando datos de ejemplo',
+            variant: 'default',
+          });
+          setLoading(false);
+          return;
+        }
+
         const idEmpresa = await getEmpresaIdFromUser(session.user.id);
 
         if (!idEmpresa) {
@@ -53,16 +66,22 @@ export function ClienteDashboard() {
         }
 
         setEmpresaId(idEmpresa);
-        const datosReales = await fetchClienteStats(idEmpresa);
+        
+        try {
+          const datosReales = await fetchClienteStats(idEmpresa);
 
-        if (datosReales) {
-          setStats(datosReales);
-        } else {
-          console.log('No se obtuvieron datos reales, manteniendo datos de ejemplo');
+          if (datosReales) {
+            setStats(datosReales);
+          } else {
+            console.log('No se obtuvieron datos reales, manteniendo datos de ejemplo');
+          }
+        } catch (statsError) {
+          console.log('Error al obtener estadísticas, usando datos de ejemplo', statsError);
+          // No establecer error para el usuario, simplemente usar datos de ejemplo
         }
       } catch (error) {
         console.error('Error al cargar datos reales:', error);
-        setError('Error al cargar datos. Por favor, intente nuevamente más tarde.');
+        // No mostrar error al usuario, simplemente usar datos de ejemplo
       } finally {
         setLoading(false);
       }

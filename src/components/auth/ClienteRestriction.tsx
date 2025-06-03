@@ -37,7 +37,7 @@ export default function ClienteRestriction({
 
     const checkAccess = async () => {
       try {
-        console.log('Verificando acceso para usuario:', session.user.id, 'con rol:', role);
+
         
         // Obtener la empresa asignada al usuario desde la tabla usuarios
         const { data: userData, error: userError } = await supabase
@@ -47,7 +47,7 @@ export default function ClienteRestriction({
           .single();
 
         if (userError) {
-          console.error('Error al obtener empresa del usuario:', userError);
+          // Error al obtener empresa del usuario
           setError('Error al verificar acceso');
           setIsChecking(false);
           return;
@@ -55,7 +55,7 @@ export default function ClienteRestriction({
         
         // Si el usuario no tiene empresa asignada
         if (!userData || userData.empresa_id === null) {
-          console.log('Usuario sin empresa asignada');
+
           setEmpresasPermitidas([]);
           setIsChecking(false);
           setHasAccess(false);
@@ -69,7 +69,7 @@ export default function ClienteRestriction({
         // Nota: La funcionalidad de empresas relacionadas se implementará en el futuro
         // cuando se cree la tabla correspondiente en la base de datos
 
-        console.log('Empresas permitidas:', empresasIds);
+
         setEmpresasPermitidas(empresasIds);
 
         // Obtener nombres de empresas para mostrar en la UI
@@ -90,15 +90,15 @@ export default function ClienteRestriction({
 
         // Verificar si tiene acceso a la empresa específica
         if (empresaId && !empresasIds.includes(empresaId)) {
-          console.log('No tiene acceso a la empresa:', empresaId);
+
           setError(`No tienes acceso a esta empresa (ID: ${empresaId})`);
           setHasAccess(false);
         } else {
-          console.log('Tiene acceso a la empresa:', empresaId || 'No se especificó empresa');
+
           setHasAccess(true);
         }
       } catch (error) {
-        console.error('Error al verificar acceso:', error);
+        // Error al verificar acceso
         setError('Error al verificar acceso');
       } finally {
         setIsChecking(false);

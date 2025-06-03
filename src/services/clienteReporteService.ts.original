@@ -14,17 +14,30 @@ export interface ClienteReporteFilters {
 
 /**
  * Obtiene los estados disponibles de la tabla afilados
- * @returns Un array con los estados disponibles ('Activo', 'Inactivo')
+ * @returns Un array con los estados disponibles
  */
 export async function getEstadosAfilados(): Promise<string[]> {
   try {
     console.log('Obteniendo estados de afilados...');
     
-    // En lugar de consultar la base de datos, devolvemos directamente los valores posibles
-    // ya que el campo estado es booleano y solo puede ser true (Activo) o false (Inactivo)
-    const estados = ['Activo', 'Inactivo'];
+    // Consulta para obtener estados únicos de la tabla afilados
+    const { data, error } = await supabase
+      .from('afilados')
+      .select('estado')
+      .not('estado', 'is', null)
+      .order('estado');
     
-    console.log('Estados disponibles:', estados);
+    if (error) {
+      console.error('Error al obtener estados de afilados:', error);
+      return [];
+    }
+    
+    // Extraer valores únicos de estado
+    const estados = data
+      .map(item => item.estado)
+      .filter((value, index, self) => value && self.indexOf(value) === index);
+    
+    console.log('Estados obtenidos:', estados);
     return estados;
   } catch (error) {
     console.error('Error al obtener estados de afilados:', error);
@@ -127,10 +140,8 @@ export async function getReporteAfiladosPorCliente(
     
     // Filtrar por estado de afilado si se especifica
     if (filters.estado && filters.estado !== 'todos') {
-      // Convertir 'Activo' a true y 'Inactivo' a false para la consulta
-      const estadoBooleano = filters.estado === 'Activo';
-      console.log('Aplicando filtro de estado de afilado:', filters.estado, '(booleano:', estadoBooleano, ')');
-      query = query.eq('estado', estadoBooleano);
+      console.log('Aplicando filtro de estado de afilado:', filters.estado);
+      query = query.eq('estado', filters.estado);
     }
 
     // Ordenar por fecha de ingreso descendente
@@ -154,22 +165,17 @@ export async function getReporteAfiladosPorCliente(
     console.log('Datos recibidos de la base de datos:', data);
     const reporteItems: ClienteReporteItem[] = (data as any[]).map(item => {
       console.log('Item estado:', item.id, 'estado:', item.estado, 'tipo:', typeof item.estado);
-      
-      // Convertir explícitamente a booleano y verificar si es true
-      const estadoBooleano = item.estado === true || item.estado === 'true' || item.estado === 1;
-      console.log('Estado convertido a booleano:', estadoBooleano);
-      
-      return {
-        id: item.id,
-        fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
-        fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
-        codigo_barras: item.sierras?.codigo_barras || 'N/A',
-        tipo_sierra: item.sierras?.tipos_sierra?.nombre || 'N/A',
-        tipo_afilado: item.tipos_afilado?.nombre || 'N/A',
-        sucursal: item.sierras?.sucursales?.nombre || 'N/A',
-        estado: estadoBooleano ? 'Activo' : 'Inactivo', // Usar el valor convertido explícitamente
-        observaciones: item.observaciones || '-'
-      };
+      return ({
+      id: item.id,
+      fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+      fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
+      codigo_barras: item.sierras?.codigo_barras || 'N/A',
+      tipo_sierra: item.sierras?.tipos_sierra?.nombre || 'N/A',
+      tipo_afilado: item.tipos_afilado?.nombre || 'N/A',
+      sucursal: item.sierras?.sucursales?.nombre || 'N/A',
+      estado: item.estado ? 'Activo' : 'Inactivo', // Mostrar el estado del afilado (activo/inactivo)
+      observaciones: item.observaciones || '-'
+    });
     });
 
     return {
@@ -309,10 +315,8 @@ export async function getAllReporteAfiladosPorCliente(
       
       // Filtrar por estado de afilado si se especifica
       if (filters.estado && filters.estado !== 'todos') {
-        // Convertir 'Activo' a true y 'Inactivo' a false para la consulta
-        const estadoBooleano = filters.estado === 'Activo';
-        console.log('Lote - Aplicando filtro de estado de afilado:', filters.estado, '(booleano:', estadoBooleano, ')');
-        batchQuery = batchQuery.eq('estado', estadoBooleano);
+        console.log('Lote - Aplicando filtro de estado de afilado:', filters.estado);
+        batchQuery = batchQuery.eq('estado', filters.estado);
       }
 
       // Ejecutar consulta para este lote
@@ -327,22 +331,17 @@ export async function getAllReporteAfiladosPorCliente(
       if (batchData && batchData.length > 0) {
         const batchItems = (batchData as any[]).map(item => {
           console.log('Exportación - Item estado:', item.id, 'estado:', item.estado, 'tipo:', typeof item.estado);
-          
-          // Convertir explícitamente a booleano y verificar si es true
-          const estadoBooleano = item.estado === true || item.estado === 'true' || item.estado === 1;
-          console.log('Exportación - Estado convertido a booleano:', estadoBooleano);
-          
-          return {
-            id: item.id,
-            fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
-            fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
-            codigo_barras: item.sierras?.codigo_barras || 'N/A',
-            tipo_sierra: item.sierras?.tipos_sierra?.nombre || 'N/A',
-            tipo_afilado: item.tipos_afilado?.nombre || 'N/A',
-            sucursal: item.sierras?.sucursales?.nombre || 'N/A',
-            estado: estadoBooleano ? 'Activo' : 'Inactivo', // Usar el valor convertido explícitamente
-            observaciones: item.observaciones || '-'
-          };
+          return ({
+          id: item.id,
+          fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+          fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
+          codigo_barras: item.sierras?.codigo_barras || 'N/A',
+          tipo_sierra: item.sierras?.tipos_sierra?.nombre || 'N/A',
+          tipo_afilado: item.tipos_afilado?.nombre || 'N/A',
+          sucursal: item.sierras?.sucursales?.nombre || 'N/A',
+          estado: item.estado ? 'Activo' : 'Inactivo', // Mostrar el estado del afilado (activo/inactivo)
+          observaciones: item.observaciones || '-'
+        });
         });
         
         allItems = [...allItems, ...batchItems];

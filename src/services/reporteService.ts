@@ -1,357 +1,457 @@
-// src/services/reporteService.ts
 import { supabase } from '@/lib/supabase-client';
-import { Empresa } from '@/types/empresa';
 import { format } from 'date-fns';
+import { Empresa } from '@/types/empresa';
+import { Sucursal } from '@/types/sucursal';
 
-// Función auxiliar para formatear fechas sin la parte de tiempo
-const formatDateWithoutTime = (dateString: string): string => {
-  try {
-    // Extraer solo la parte de fecha (YYYY-MM-DD) sin convertir a objeto Date
-    // para evitar problemas con zonas horarias
-    return dateString.split('T')[0];
-  } catch (error) {
-    console.error('Error al formatear fecha:', error, dateString);
-    return dateString; // Devolver la fecha original si hay error
-  }
-};
-
-// Definir interfaces para los tipos de datos de Supabase
-interface Sierra {
-  id: number;
-  codigo_barras: string;
+export interface ReporteAfiladosPorClienteFilters {
+  empresa_id: number | string | null;
+  sucursal_id: number | string | null;
+  fecha_desde: Date | string | null;
+  fecha_hasta: Date | string | null;
+  tipo_sierra_id: number | string | null;
+  tipo_afilado_id: number | string | null;
   activo: boolean;
-  fecha_registro: string;
-  sucursal_id: number;
-  tipo_sierra_id: number;
-  estado_id: number;
-  estados_sierra: EstadoSierra;
-  sucursales: {
-    id: number;
-    nombre: string;
-    empresa_id: number;
-    empresas: {
-      id: number;
-      razon_social: string;
-    };
-  };
-  tipos_sierra: {
-    id: number;
-    nombre: string;
-  };
+  estado_afilado?: string;
+  estado?: boolean; // Estado del afilado (true = Activo, false = Inactivo)
 }
 
-interface TipoAfilado {
-  id: number;
-  nombre: string;
-}
-
-interface EstadoSierra {
-  id: number;
-  nombre: string;
-}
-
-// Interfaz para los datos de afilado que vienen de Supabase
-interface AfiladoData {
+export interface ReporteAfiladoItem {
   id: number;
   fecha_afilado: string;
   fecha_salida: string | null;
-  creado_en: string;
-  modificado_en: string | null;
-  sierra_id: number;
-  tipo_afilado_id: number;
-  usuario_id: string;
-  estado: boolean;
-  sierras: Sierra;
-  tipos_afilado: TipoAfilado;
-}
-
-// Interfaz para los filtros de reporte de afilados por cliente
-export interface ReporteAfiladosPorClienteFilters {
-  empresa_id: number | string | null;
-  sucursal_id?: number | string | null;
-  fecha_desde?: Date | string | null;
-  fecha_hasta?: Date | string | null;
-  tipo_sierra_id?: number | string | null;
-  tipo_afilado_id?: number | string | null;
-  activo?: boolean;
-  estado_afilado?: string;
-  // Parámetros de paginación
-  page?: number;
-  pageSize?: number;
-  // Flag para indicar si es una exportación (sin límites de registros)
-  isExport?: boolean;
-}
-
-// Interfaz para el resultado paginado del reporte
-export interface PaginatedReporteResult {
-  items: ReporteAfiladoItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-// Interfaz para un ítem de reporte
-export interface ReporteAfiladoItem {
-  id: number;
-  empresa: string;
-  empresa_id: number;
-  sucursal: string;
-  sucursal_id: number;
+  codigo_barras: string;
+  codigo_sierra?: string; // Alias para codigo_barras en algunos contextos
   tipo_sierra: string;
-  tipo_sierra_id: number;
-  codigo_sierra: string;
   tipo_afilado: string;
-  tipo_afilado_id: number;
-  estado_sierra: string; // Mantenemos este campo para compatibilidad
-  fecha_afilado: string | null;
-  fecha_salida: string | null; // Fecha de salida del afilado
-  estado_afilado: string; // Estado del afilado (Activo/Inactivo)
-  fecha_registro: string | null;
-  activo: boolean;
-  observaciones: string | null; // Observaciones de la sierra
+  sucursal: string;
+  empresa?: string; // Nombre de la empresa
+  estado: string;
+  estado_afilado?: string; // Estado específico del afilado
+  observaciones: string | null;
+  fecha_registro?: string; // Fecha de registro en el sistema
+  activo?: boolean; // Si la sierra está activa o no
 }
 
-// Obtener empresas activas
-export const getEmpresasActivas = async (): Promise<Empresa[]> => {
+// Definir una interfaz para los datos que devuelve Supabase
+export interface AfiladoReporteData {
+  id: number;
+  fecha_afilado: string;
+  fecha_salida: string | null;
+  observaciones: string | null;
+  estado: boolean;
+  sierras: {
+    id: number;
+    codigo_barras: string;
+    sucursal_id: number;
+    tipo_sierra_id: number;
+    tipos_sierra: { id: number; nombre: string };
+    sucursales: { id: number; nombre: string; empresa_id: number };
+    estados_sierra: { id: number; nombre: string };
+  };
+  tipos_afilado: { id: number; nombre: string };
+}
+
+export async function getReporteAfiladosPorCliente(
+  filters: ReporteAfiladosPorClienteFilters,
+  page: number = 1,
+  pageSize: number = 20
+): Promise<{ data: ReporteAfiladoItem[], count: number }> {
   try {
-    console.log('Obteniendo empresas activas');
+    let query = supabase
+      .from('afilados')
+      .select(`
+        id,
+        fecha_afilado,
+        fecha_salida,
+        observaciones,
+        estado,
+        creado_en,
+        sierras!inner(
+          id,
+          codigo_barras,
+          sucursal_id,
+          tipo_sierra_id,
+          activo,
+          tipos_sierra!inner(id, nombre),
+          sucursales!inner(
+            id, 
+            nombre, 
+            empresa_id,
+            empresas!inner(id, razon_social)
+          ),
+          estados_sierra!inner(id, nombre)
+        ),
+        tipos_afilado!inner(id, nombre)
+      `, { count: 'exact' });
+
+    // Aplicar filtros
+    if (filters.empresa_id) {
+      console.log('Aplicando filtro de empresa ID:', filters.empresa_id, 'tipo:', typeof filters.empresa_id);
+      // Asegurar que la comparación sea robusta convirtiendo a string y normalizando
+      query = query.eq('sierras.sucursales.empresa_id', String(filters.empresa_id).trim());
+    }
+
+    if (filters.sucursal_id) {
+      query = query.eq('sierras.sucursal_id', String(filters.sucursal_id).trim());
+    }
+
+    if (filters.tipo_sierra_id) {
+      query = query.eq('sierras.tipos_sierra.id', String(filters.tipo_sierra_id).trim());
+    }
+
+    if (filters.tipo_afilado_id) {
+      query = query.eq('tipos_afilado.id', String(filters.tipo_afilado_id).trim());
+    }
+
+    if (filters.fecha_desde) {
+      // Manejar tanto objetos Date como strings
+      const fechaDesde = typeof filters.fecha_desde === 'string' 
+        ? filters.fecha_desde 
+        : filters.fecha_desde.toISOString().split('T')[0]; // Solo usar la parte de fecha
+      query = query.gte('fecha_afilado', fechaDesde);
+    }
+
+    if (filters.fecha_hasta) {
+      // Ajustar la fecha hasta para incluir todo el día
+      if (typeof filters.fecha_hasta === 'string') {
+        query = query.lte('fecha_afilado', filters.fecha_hasta);
+      } else {
+        const fechaHasta = new Date(filters.fecha_hasta);
+        fechaHasta.setHours(23, 59, 59, 999);
+        query = query.lte('fecha_afilado', fechaHasta.toISOString().split('T')[0] + 'T23:59:59.999Z');
+      }
+    }
     
+    // Filtrar por estado de afilado (pendiente/completado)
+    if (filters.estado_afilado === 'pendiente') {
+      query = query.is('fecha_salida', null);
+    } else if (filters.estado_afilado === 'completado') {
+      query = query.not('fecha_salida', 'is', null);
+    }
+    
+    // Filtrar por estado de sierra (activo/inactivo) si se especifica
+    if (filters.activo !== undefined) {
+      console.log('Aplicando filtro de estado de sierra:', filters.activo);
+      query = query.eq('sierras.activo', filters.activo);
+    }
+    
+    // Filtrar por estado del afilado (activo/inactivo) si se especifica
+    if (filters.estado !== undefined) {
+      console.log('Aplicando filtro de estado del afilado:', filters.estado);
+      query = query.eq('estado', filters.estado);
+    }
+    
+    // Aplicar paginación
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    
+    // Ordenar por fecha de afilado descendente (más reciente primero)
+    query = query.order('fecha_afilado', { ascending: false }).range(from, to);
+    
+    // Ejecutar la consulta
+    const { data, error, count } = await query;
+    
+    if (error) {
+      console.error('Error al obtener reporte de afilados por cliente:', error);
+      throw error;
+    }
+
+    // Transformar los datos para la tabla
+    const reporteItems: ReporteAfiladoItem[] = (data as any[]).map(item => {
+      const sierra = item.sierras || {};
+      const sucursal = sierra.sucursales || {};
+      const empresa = sucursal.empresas || {};
+      
+      // Obtener el estado del afilado basado en fecha_salida
+      const estadoAfilado = item.fecha_salida ? 'completado' : 'pendiente';
+      
+      // Log para depurar el valor del campo estado
+      console.log(`ID: ${item.id}, estado (valor original):`, item.estado, 'tipo:', typeof item.estado);
+      
+      // Convertir explícitamente a booleano para manejar diferentes formatos
+      const estadoBooleano = item.estado === true || item.estado === 'true' || item.estado === 1;
+      
+      return {
+        id: item.id,
+        fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+        fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
+        codigo_barras: sierra.codigo_barras || 'N/A',
+        codigo_sierra: sierra.codigo_barras || 'N/A', // Alias para mantener compatibilidad
+        tipo_sierra: sierra.tipos_sierra?.nombre || 'N/A',
+        tipo_afilado: item.tipos_afilado?.nombre || 'N/A',
+        sucursal: sucursal.nombre || 'N/A',
+        empresa: empresa.razon_social || 'N/A', // Ahora obtenemos la razón social de la empresa
+        estado: estadoBooleano ? 'Activo' : 'Inactivo', // Usar el campo estado (boolean) de la tabla afilados
+        estado_afilado: estadoAfilado,
+        observaciones: item.observaciones || '-',
+        fecha_registro: item.creado_en ? format(new Date(item.creado_en), 'dd/MM/yyyy') : 'N/A',
+        activo: sierra.activo !== undefined ? sierra.activo : true
+      };
+    });
+    
+    // Registrar para depuración
+    console.log(`Reporte generado: ${reporteItems.length} registros encontrados de ${count} totales`);
+    if (reporteItems.length > 0) {
+      console.log('Ejemplo de registro:', reporteItems[0]);
+    }
+
+    return {
+      data: reporteItems,
+      count: count || 0
+    };
+  } catch (error) {
+    console.error('Error en getReporteAfiladosPorCliente:', error);
+    throw error;
+  }
+}
+
+// Función para obtener todos los registros para exportar a Excel
+export async function getAllReporteAfiladosPorCliente(
+  filters: ReporteAfiladosPorClienteFilters
+): Promise<ReporteAfiladoItem[]> {
+  try {
+    // Primero, realizar una consulta para obtener el conteo total
+    let countQuery = supabase
+      .from('afilados')
+      .select('id, sierras!inner(sucursales!inner(empresa_id))', { count: 'exact', head: true });
+
+    // Aplicar filtros para el conteo
+    if (filters.empresa_id) {
+      countQuery = countQuery.eq('sierras.sucursales.empresa_id', String(filters.empresa_id).trim());
+    }
+
+    if (filters.sucursal_id) {
+      countQuery = countQuery.eq('sierras.sucursal_id', String(filters.sucursal_id).trim());
+    }
+
+    if (filters.tipo_sierra_id) {
+      countQuery = countQuery.eq('sierras.tipos_sierra.id', String(filters.tipo_sierra_id).trim());
+    }
+
+    if (filters.tipo_afilado_id) {
+      countQuery = countQuery.eq('tipos_afilado.id', String(filters.tipo_afilado_id).trim());
+    }
+
+    if (filters.fecha_desde) {
+      const fechaDesde = typeof filters.fecha_desde === 'string' 
+        ? filters.fecha_desde 
+        : filters.fecha_desde.toISOString().split('T')[0];
+      countQuery = countQuery.gte('fecha_afilado', fechaDesde);
+    }
+
+    if (filters.fecha_hasta) {
+      if (typeof filters.fecha_hasta === 'string') {
+        countQuery = countQuery.lte('fecha_afilado', filters.fecha_hasta);
+      } else {
+        const fechaHasta = new Date(filters.fecha_hasta);
+        fechaHasta.setHours(23, 59, 59, 999);
+        countQuery = countQuery.lte('fecha_afilado', fechaHasta.toISOString().split('T')[0] + 'T23:59:59.999Z');
+      }
+    }
+
+    // Filtrar por estado de afilado (pendiente/completado)
+    if (filters.estado_afilado === 'pendiente') {
+      countQuery = countQuery.is('fecha_salida', null);
+    } else if (filters.estado_afilado === 'completado') {
+      countQuery = countQuery.not('fecha_salida', 'is', null);
+    }
+
+    // Filtrar por estado de sierra (activo/inactivo) si se especifica
+    if (filters.activo !== undefined) {
+      countQuery = countQuery.eq('sierras.activo', filters.activo);
+    }
+
+    // Ejecutar la consulta de conteo
+    const { count, error: countError } = await countQuery;
+    
+    if (countError) {
+      console.error('Error al obtener conteo para exportación:', countError);
+      throw countError;
+    }
+
+    console.log(`Preparando exportación de ${count} registros`);
+    
+    // Si no hay registros, devolver array vacío
+    if (!count || count === 0) {
+      return [];
+    }
+
+    // Procesar en lotes para evitar problemas con grandes volúmenes de datos
+    const batchSize = 500; // Tamaño de lote
+    const batches = Math.ceil(count / batchSize);
+    let allItems: ReporteAfiladoItem[] = [];
+
+    for (let batchIndex = 0; batchIndex < batches; batchIndex++) {
+      const from = batchIndex * batchSize;
+      const to = from + batchSize - 1;
+      
+      console.log(`Procesando lote ${batchIndex + 1}/${batches} (registros ${from + 1}-${Math.min(to + 1, count)})`);
+      
+      // Consulta para este lote
+      let batchQuery = supabase
+        .from('afilados')
+        .select(`
+          id,
+          fecha_afilado,
+          fecha_salida,
+          observaciones,
+          estado,
+          creado_en,
+          sierras!inner(
+            id,
+            codigo_barras,
+            sucursal_id,
+            tipo_sierra_id,
+            activo,
+            tipos_sierra!inner(id, nombre),
+            sucursales!inner(
+              id, 
+              nombre, 
+              empresa_id,
+              empresas!inner(id, razon_social)
+            ),
+            estados_sierra!inner(id, nombre)
+          ),
+          tipos_afilado!inner(id, nombre)
+        `)
+        .order('fecha_afilado', { ascending: false })
+        .range(from, to);
+
+      // Aplicar los mismos filtros que en la consulta de conteo
+      if (filters.empresa_id) {
+        batchQuery = batchQuery.eq('sierras.sucursales.empresa_id', String(filters.empresa_id).trim());
+      }
+
+      if (filters.sucursal_id) {
+        batchQuery = batchQuery.eq('sierras.sucursal_id', String(filters.sucursal_id).trim());
+      }
+
+      if (filters.tipo_sierra_id) {
+        batchQuery = batchQuery.eq('sierras.tipos_sierra.id', String(filters.tipo_sierra_id).trim());
+      }
+
+      if (filters.tipo_afilado_id) {
+        batchQuery = batchQuery.eq('tipos_afilado.id', String(filters.tipo_afilado_id).trim());
+      }
+
+      if (filters.fecha_desde) {
+        // Manejar tanto objetos Date como strings
+        const fechaDesde = typeof filters.fecha_desde === 'string' 
+          ? filters.fecha_desde 
+          : (filters.fecha_desde as Date).toISOString().split('T')[0]; // Solo usar la parte de fecha
+        batchQuery = batchQuery.gte('fecha_afilado', fechaDesde);
+      }
+
+      if (filters.fecha_hasta) {
+        // Ajustar la fecha hasta para incluir todo el día
+        if (typeof filters.fecha_hasta === 'string') {
+          batchQuery = batchQuery.lte('fecha_afilado', filters.fecha_hasta);
+        } else {
+          const fechaHasta = new Date(filters.fecha_hasta);
+          fechaHasta.setHours(23, 59, 59, 999);
+          batchQuery = batchQuery.lte('fecha_afilado', (fechaHasta as Date).toISOString().split('T')[0] + 'T23:59:59.999Z');
+        }
+      }
+
+      // Filtrar por estado de sierra (activo/inactivo) si se especifica
+      if (filters.activo !== undefined) {
+        console.log('Lote - Aplicando filtro de estado de sierra:', filters.activo);
+        batchQuery = batchQuery.eq('sierras.activo', filters.activo);
+      }
+
+      // Ejecutar consulta para este lote
+      const { data: batchData, error: batchError } = await batchQuery;
+      
+      if (batchError) {
+        console.error(`Error al obtener lote ${batchIndex + 1}:`, batchError);
+        throw batchError;
+      }
+
+      // Procesar resultados de este lote
+      if (batchData && batchData.length > 0) {
+        const batchItems = (batchData as any[]).map(item => {
+          const sierra = item.sierras || {};
+          const sucursal = sierra.sucursales || {};
+          const empresa = sucursal.empresas || {};
+          
+          // Log para depurar el valor del campo estado en la exportación
+          console.log(`Exportación - ID: ${item.id}, estado (valor original):`, item.estado, 'tipo:', typeof item.estado);
+          
+          // Convertir explícitamente a booleano para manejar diferentes formatos
+          const estadoBooleano = item.estado === true || item.estado === 'true' || item.estado === 1;
+          
+          return {
+            id: item.id,
+            fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
+            fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
+            codigo_barras: sierra.codigo_barras || 'N/A',
+            codigo_sierra: sierra.codigo_barras || 'N/A',
+            tipo_sierra: sierra.tipos_sierra?.nombre || 'N/A',
+            tipo_afilado: item.tipos_afilado?.nombre || 'N/A',
+            sucursal: sucursal.nombre || 'N/A',
+            empresa: empresa.razon_social || 'N/A',
+            estado: estadoBooleano ? 'Activo' : 'Inactivo', // Usar el campo estado (boolean) de la tabla afilados
+            observaciones: item.observaciones || '-',
+            fecha_registro: item.creado_en ? format(new Date(item.creado_en), 'dd/MM/yyyy') : 'N/A',
+            activo: sierra.activo !== undefined ? sierra.activo : true
+          };
+        });
+        
+        allItems = [...allItems, ...batchItems];
+      }
+    }
+
+    console.log(`Exportación completada: ${allItems.length} registros obtenidos`);
+    return allItems;
+  } catch (error) {
+    console.error('Error en getAllReporteAfiladosPorCliente:', error);
+    throw error;
+  }
+}
+
+// Función para obtener empresas activas
+export async function getEmpresasActivas(): Promise<Empresa[]> {
+  try {
     const { data, error } = await supabase
       .from('empresas')
       .select('*')
       .eq('activo', true)
       .order('razon_social');
-      
+
     if (error) {
       console.error('Error al obtener empresas activas:', error);
-      throw new Error('Error al obtener empresas: ' + error.message);
+      throw error;
     }
-    
-    console.log(`Se encontraron ${data?.length || 0} empresas activas`);
-    return data || [];
+
+    return data as Empresa[];
   } catch (error) {
-    console.error('Error al obtener empresas activas:', error);
+    console.error('Error en getEmpresasActivas:', error);
     throw error;
   }
-};
+}
 
-// Obtener el reporte de afilados por cliente con los filtros aplicados
-export const getReporteAfiladosPorCliente = async (
-  filters: ReporteAfiladosPorClienteFilters
-): Promise<PaginatedReporteResult> => {
+// Función para obtener sucursales por empresa
+export async function getSucursalesPorEmpresa(empresaId: number | string): Promise<Sucursal[]> {
   try {
-    // Validaciones de fechas
-    if (!filters.isExport && (!filters.fecha_desde || !filters.fecha_hasta)) {
-      throw new Error('Debe especificar un rango de fechas para generar el reporte');
-    }
-    if (!filters.isExport && filters.fecha_desde && filters.fecha_hasta) {
-      const fechaDesde = new Date(filters.fecha_desde as string);
-      const fechaHasta = new Date(filters.fecha_hasta as string);
-      const diffTime = Math.abs(fechaHasta.getTime() - fechaDesde.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      if (diffDays > 31) {
-        throw new Error('El rango de fechas no puede ser mayor a 31 días');
-      }
+    if (!empresaId) {
+      return [];
     }
 
-    // Paginación
-    const page = filters.page || 1;
-    const pageSize = filters.pageSize || 20;
-    const startRow = (page - 1) * pageSize;
+    const { data, error } = await supabase
+      .from('sucursales')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .eq('activo', true)
+      .order('nombre');
 
-    // Consulta de conteo
-    let countQuery = supabase
-      .from('afilados')
-      .select('id, sierras!inner(id, sucursal_id, sucursales!inner(empresa_id))', { count: 'exact', head: true });
-
-    // Filtros comunes
-    const applyCommonFilters = (q: any) => {
-      const empresaId = typeof filters.empresa_id === 'string' ? parseInt(filters.empresa_id) : filters.empresa_id;
-      q = q.eq('sierras.sucursales.empresa_id', empresaId);
-      if (filters.sucursal_id) {
-        if (typeof filters.sucursal_id === 'string' && filters.sucursal_id !== 'all_sucursales') {
-          q = q.eq('sierras.sucursal_id', parseInt(filters.sucursal_id));
-        } else if (typeof filters.sucursal_id === 'number') {
-          q = q.eq('sierras.sucursal_id', filters.sucursal_id);
-        }
-      }
-      if (filters.tipo_sierra_id) {
-        if (typeof filters.tipo_sierra_id === 'string' && filters.tipo_sierra_id !== 'all_tipos') {
-          q = q.eq('sierras.tipo_sierra_id', parseInt(filters.tipo_sierra_id));
-        } else if (typeof filters.tipo_sierra_id === 'number') {
-          q = q.eq('sierras.tipo_sierra_id', filters.tipo_sierra_id);
-        }
-      }
-      if (filters.tipo_afilado_id) {
-        if (typeof filters.tipo_afilado_id === 'string' && filters.tipo_afilado_id !== 'all_tipos') {
-          q = q.eq('tipo_afilado_id', parseInt(filters.tipo_afilado_id));
-        } else if (typeof filters.tipo_afilado_id === 'number') {
-          q = q.eq('tipo_afilado_id', filters.tipo_afilado_id);
-        }
-      }
-      if (filters.fecha_desde) {
-        const fechaDesde = new Date(filters.fecha_desde as string);
-        fechaDesde.setHours(0, 0, 0, 0);
-        q = q.gte('fecha_afilado', fechaDesde.toISOString().split('T')[0]);
-      }
-      if (filters.fecha_hasta) {
-        const fechaHasta = new Date(filters.fecha_hasta as string);
-        fechaHasta.setHours(23, 59, 59, 999);
-        q = q.lte('fecha_afilado', fechaHasta.toISOString().split('T')[0]);
-      }
-      if (typeof filters.activo === 'boolean') {
-        q = q.eq('sierras.activo', filters.activo);
-      }
-      return q;
-    };
-
-    // Aplicar filtros a la consulta de conteo
-    countQuery = applyCommonFilters(countQuery);
-    
-    // Ejecutar conteo
-    const { count: totalCount, error: countError } = await countQuery;
-    if (countError) throw new Error('Error al contar registros: ' + countError.message);
-    
-    // Función auxiliar para procesar un ítem de afilado
-    const processAfiladoItem = (item: any): ReporteAfiladoItem => {
-      const sierra = item.sierras;
-      const sucursal = sierra.sucursales;
-      const empresa = sucursal.empresas;
-      const tipoAfilado = item.tipos_afilado;
-      const tipoSierra = sierra.tipos_sierra;
-      const estadoSierra = sierra.estados_sierra;
-      const fechaAfilado = item.fecha_afilado ? formatDateWithoutTime(item.fecha_afilado) : null;
-      const fechaSalida = item.fecha_salida ? formatDateWithoutTime(item.fecha_salida) : null;
-      const fechaRegistro = sierra.fecha_registro ? formatDateWithoutTime(sierra.fecha_registro) : null;
-      let estadoAfilado = '';
-      if (item.estado === true || item.estado === 't') estadoAfilado = 'Activo';
-      else if (item.estado === false || item.estado === 'f') estadoAfilado = 'Inactivo';
-      return {
-        id: item.id,
-        empresa: empresa?.razon_social || 'Desconocida',
-        empresa_id: sucursal?.empresa_id || null,
-        sucursal: sucursal?.nombre || 'Sin nombre',
-        sucursal_id: sucursal?.id || null,
-        tipo_sierra: tipoSierra?.nombre || 'Desconocido',
-        tipo_sierra_id: sierra?.tipo_sierra_id || null,
-        codigo_sierra: sierra?.codigo_barras || '',
-        tipo_afilado: tipoAfilado?.nombre || 'Desconocido',
-        tipo_afilado_id: item.tipo_afilado_id || null,
-        estado_sierra: estadoSierra?.nombre || '',
-        fecha_afilado: fechaAfilado,
-        fecha_salida: fechaSalida,
-        estado_afilado: estadoAfilado,
-        fecha_registro: fechaRegistro,
-        activo: sierra?.activo,
-        observaciones: sierra?.observaciones || null
-      };
-    };
-    
-    // Para exportaciones, siempre usar el mecanismo de lotes para evitar limitaciones
-    if (filters.isExport) {
-      const actualCount = totalCount || 0;
-      console.log(`Exportando ${actualCount} registros en lotes...`);
-      
-      // Calcular el número de lotes necesarios (cada lote tiene 1000 registros como máximo)
-      const batchSize = 1000;
-      const batchCount = Math.ceil(actualCount / batchSize);
-      let allItems: ReporteAfiladoItem[] = [];
-      
-      // Obtener registros en lotes
-      for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
-        const batchStart = batchIndex * batchSize;
-        const batchEnd = Math.min((batchIndex + 1) * batchSize - 1, actualCount - 1);
-        
-        console.log(`Obteniendo lote ${batchIndex + 1}/${batchCount} (registros ${batchStart}-${batchEnd})`);
-        
-        // Consulta para este lote
-        let batchQuery = supabase
-          .from('afilados')
-          .select(`
-            id, fecha_afilado, fecha_salida, creado_en, modificado_en, sierra_id, tipo_afilado_id, usuario_id, estado,
-            sierras!inner(id, codigo_barras, activo, fecha_registro, observaciones, sucursal_id, tipo_sierra_id, estado_id, estados_sierra!inner(id, nombre), sucursales!inner(id, nombre, empresa_id, empresas!inner(id, razon_social)), tipos_sierra!inner(id, nombre)),
-            tipos_afilado!inner(id, nombre)
-          `)
-          .order('fecha_afilado', { ascending: false })
-          .range(batchStart, batchEnd);
-        
-        // Aplicar los mismos filtros
-        batchQuery = applyCommonFilters(batchQuery);
-        
-        // Ejecutar consulta para este lote
-        const { data: batchData, error: batchError } = await batchQuery;
-        if (batchError) throw new Error(`Error al obtener lote ${batchIndex + 1}: ${batchError.message}`);
-        
-        // Procesar resultados de este lote
-        if (batchData && batchData.length > 0) {
-          const batchItems = batchData.map((item: any) => processAfiladoItem(item));
-          allItems = [...allItems, ...batchItems];
-        }
-      }
-      
-      console.log(`Exportación completada: ${allItems.length} registros obtenidos`);
-      
-      return {
-        items: allItems,
-        total: actualCount,
-        page: 1,
-        pageSize: actualCount,
-        totalPages: 1
-      };
-    } else {
-      // Consulta principal (para visualización normal o exportaciones pequeñas)
-      let query = supabase
-        .from('afilados')
-        .select(`
-          id, fecha_afilado, fecha_salida, creado_en, modificado_en, sierra_id, tipo_afilado_id, usuario_id, estado,
-          sierras!inner(id, codigo_barras, activo, fecha_registro, observaciones, sucursal_id, tipo_sierra_id, estado_id, estados_sierra!inner(id, nombre), sucursales!inner(id, nombre, empresa_id, empresas!inner(id, razon_social)), tipos_sierra!inner(id, nombre)),
-          tipos_afilado!inner(id, nombre)
-        `)
-        .order('fecha_afilado', { ascending: false });
-      
-      // Aplicar filtros
-      query = applyCommonFilters(query);
-      
-      // Aplicar paginación o límite según corresponda
-      if (filters.isExport) {
-        // Para exportaciones, no usar límite para obtener todos los registros
-        // No aplicamos límite para permitir exportar todos los registros
-      } else {
-        // Para visualización normal, usar paginación
-        query = query.range(startRow, startRow + pageSize - 1);
-      }
-      
-      // Ejecutar consulta principal
-      const { data: afiladosData, error: afiladosError } = await query;
-      if (afiladosError) throw new Error('Error al obtener afilados: ' + afiladosError.message);
-      if (!afiladosData || afiladosData.length === 0) {
-        return {
-          items: [],
-          total: totalCount || 0,
-          page,
-          pageSize,
-          totalPages: 0
-        };
-      }
-
-      // Procesar resultados
-      const items: ReporteAfiladoItem[] = afiladosData.map((item: any) => processAfiladoItem(item));
-
-      return {
-        items,
-        total: totalCount || 0,
-        page,
-        pageSize,
-        totalPages: Math.ceil((totalCount || 0) / pageSize)
-      };
+    if (error) {
+      console.error('Error al obtener sucursales por empresa:', error);
+      throw error;
     }
-  } catch (error: any) {
-    console.error('Error al generar reporte:', error, JSON.stringify(error));
-    if (error instanceof Error) {
-      console.error('Error.message:', error.message);
-      console.error('Error.stack:', error.stack);
-    }
+
+    return data as Sucursal[];
+  } catch (error) {
+    console.error('Error en getSucursalesPorEmpresa:', error);
     throw error;
   }
-};
+}

@@ -30,14 +30,14 @@ export default function RoleBasedAccess({
 
     // Si no hay sesión, redirigir al login
     if (!session) {
-      console.log('No hay sesión activa, redirigiendo a login');
+
       router.push('/login');
       return;
     }
 
     // Si el usuario está autenticado pero no tiene un rol permitido
     if (role && !allowedRoles.includes(role) && !allowedRoles.includes('all')) {
-      console.log(`Usuario con rol ${role} no tiene acceso a esta sección. Roles permitidos:`, allowedRoles);
+
       
       // Redirigir según el rol
       if (role === 'cliente') {
@@ -46,7 +46,7 @@ export default function RoleBasedAccess({
         router.push(redirectPath || '/dashboard');
       }
     } else if (role) {
-      console.log(`Acceso permitido para usuario con rol ${role}`);
+
     }
   }, [session, role, loading, allowedRoles, router, redirectPath]);
 
