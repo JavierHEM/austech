@@ -115,7 +115,7 @@ export default function ReporteAfiladosFilters({
         
         // Si hay una empresa fija (para usuarios con rol cliente), establecerla como valor por defecto
         if (empresaIdFijo) {
-          console.log('Estableciendo empresa fija en filtros:', empresaIdFijo);
+          // Estableciendo empresa fija en filtros
           form.setValue('empresa_id', empresaIdFijo);
           // Cargar sucursales para esta empresa
           loadSucursales(empresaIdFijo);
@@ -132,7 +132,7 @@ export default function ReporteAfiladosFilters({
           );
           
           if (empresaSeleccionada) {
-            console.log('Empresa seleccionada encontrada:', empresaSeleccionada.razon_social, 'con ID:', empresaSeleccionada.id);
+            // Empresa seleccionada encontrada
           } else {
             console.warn('No se encontró la empresa con ID:', empresaIdFijo, 'entre las empresas disponibles');
           }
@@ -280,7 +280,7 @@ export default function ReporteAfiladosFilters({
             <Select 
               disabled={loading || !!empresaIdFijo} 
               onValueChange={(value) => {
-                console.log('Empresa seleccionada manualmente:', value);
+                // Empresa seleccionada manualmente
                 form.setValue('empresa_id', value);
                 if (value) loadSucursales(value);
               }}

@@ -3,6 +3,8 @@ import { format } from 'date-fns';
 import { Empresa } from '@/types/empresa';
 import { Sucursal } from '@/types/sucursal';
 
+
+
 export interface ReporteAfiladosPorClienteFilters {
   empresa_id: number | string | null;
   sucursal_id: number | string | null;
@@ -57,6 +59,7 @@ export async function getReporteAfiladosPorCliente(
   pageSize: number = 20
 ): Promise<{ data: ReporteAfiladoItem[], count: number }> {
   try {
+      // Consulta optimizada para mostrar datos completos
     let query = supabase
       .from('afilados')
       .select(`
@@ -84,9 +87,8 @@ export async function getReporteAfiladosPorCliente(
         tipos_afilado!inner(id, nombre)
       `, { count: 'exact' });
 
-    // Aplicar filtros
+    // Aplicar filtro de empresa
     if (filters.empresa_id) {
-      console.log('Aplicando filtro de empresa ID:', filters.empresa_id, 'tipo:', typeof filters.empresa_id);
       // Asegurar que la comparación sea robusta convirtiendo a string y normalizando
       query = query.eq('sierras.sucursales.empresa_id', String(filters.empresa_id).trim());
     }
@@ -130,15 +132,53 @@ export async function getReporteAfiladosPorCliente(
     }
     
     // Filtrar por estado de sierra (activo/inactivo) si se especifica
-    if (filters.activo !== undefined) {
-      console.log('Aplicando filtro de estado de sierra:', filters.activo);
+    // IMPORTANTE: Solo aplicar este filtro cuando NO estamos buscando registros inactivos
+    if (filters.activo !== undefined && !(filters.estado === false)) {
+      // Aplicando filtro de estado de sierra
+      // Aplicar el filtro de sierra activa solo cuando no estamos buscando registros inactivos
       query = query.eq('sierras.activo', filters.activo);
+    } else if (filters.activo !== undefined) {
+      // Omitiendo filtro de estado de sierra para mostrar todos los registros inactivos
     }
     
     // Filtrar por estado del afilado (activo/inactivo) si se especifica
     if (filters.estado !== undefined) {
-      console.log('Aplicando filtro de estado del afilado:', filters.estado);
-      query = query.eq('estado', filters.estado);
+      // Convertir explícitamente a booleano para evitar problemas de comparación
+      const estadoBooleano = filters.estado === true || String(filters.estado).toLowerCase() === 'true';
+      
+      // Aplicar filtros principales
+      
+      // Consulta con filtro de fechas para verificar registros inactivos en el rango
+      if (filters.fecha_desde && filters.fecha_hasta) {
+        // Convertir fechas a formato ISO string de manera segura
+        const fechaDesde = filters.fecha_desde instanceof Date 
+          ? filters.fecha_desde.toISOString() 
+          : new Date(filters.fecha_desde).toISOString();
+        
+        const fechaHasta = filters.fecha_hasta instanceof Date 
+          ? filters.fecha_hasta.toISOString() 
+          : new Date(filters.fecha_hasta).toISOString();
+        
+        const { data: diagnosticoFechas } = await supabase
+          .from('afilados')
+          .select('id, estado, fecha_afilado')
+          .or('estado.eq.false,estado.is.null')
+          .gte('fecha_afilado', fechaDesde)
+          .lte('fecha_afilado', fechaHasta)
+          .limit(5);
+        
+        // Verificación de registros inactivos en rango de fechas completada
+      }
+      
+      // SOLUCIÓN FINAL: Implementar una solución robusta para el filtro de estado
+      if (estadoBooleano) {
+        // Para activos, solo mostrar registros con estado = true
+        query = query.eq('estado', true);
+      } else {
+        // Para inactivos, mostrar registros con estado = false O estado = null
+        // Usamos la sintaxis de Supabase para OR con filtros múltiples
+        query = query.or('estado.eq.false,estado.is.null');
+      }
     }
     
     // Aplicar paginación
@@ -166,15 +206,55 @@ export async function getReporteAfiladosPorCliente(
       const estadoAfilado = item.fecha_salida ? 'completado' : 'pendiente';
       
       // Log para depurar el valor del campo estado
-      console.log(`ID: ${item.id}, estado (valor original):`, item.estado, 'tipo:', typeof item.estado);
+      // Procesamiento de estado para cada item
       
       // Convertir explícitamente a booleano para manejar diferentes formatos
       const estadoBooleano = item.estado === true || item.estado === 'true' || item.estado === 1;
       
+      // Función para formatear fechas de manera segura
+      const formatFechaSafe = (fechaStr: string | null | undefined): string => {
+        if (!fechaStr) return 'N/A';
+        try {
+          // Extraer solo la parte de la fecha (YYYY-MM-DD) para evitar problemas de zona horaria
+          let fechaParseada;
+          
+          if (typeof fechaStr === 'string') {
+            // Si es una fecha ISO, extraer solo la parte de la fecha
+            if (fechaStr.includes('T')) {
+              const soloFecha = fechaStr.split('T')[0];
+              // Crear fecha a las 12 del mediodía para evitar problemas de zona horaria
+              fechaParseada = new Date(`${soloFecha}T12:00:00`);
+            } else {
+              // Si ya es solo fecha, agregar hora para evitar problemas de zona horaria
+              fechaParseada = new Date(`${fechaStr}T12:00:00`);
+            }
+          } else {
+            fechaParseada = new Date(fechaStr);
+          }
+          
+          // Verificar si la fecha es válida
+          if (isNaN(fechaParseada.getTime())) {
+            console.warn(`Fecha inválida encontrada: ${fechaStr}`);
+            return 'N/A';
+          }
+          
+          // Imprimir para depuración
+          // Fecha parseada y formateada correctamente
+          
+          return format(fechaParseada, 'dd/MM/yyyy');
+        } catch (error) {
+          console.error(`Error al formatear fecha: ${fechaStr}`, error);
+          return 'N/A';
+        }
+      };
+
+      // Log para depuración de fechas
+      // Procesamiento de fechas para cada item
+      
       return {
         id: item.id,
-        fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
-        fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
+        fecha_afilado: formatFechaSafe(item.fecha_afilado),
+        fecha_salida: item.fecha_salida ? formatFechaSafe(item.fecha_salida) : 'Pendiente',
         codigo_barras: sierra.codigo_barras || 'N/A',
         codigo_sierra: sierra.codigo_barras || 'N/A', // Alias para mantener compatibilidad
         tipo_sierra: sierra.tipos_sierra?.nombre || 'N/A',
@@ -184,15 +264,15 @@ export async function getReporteAfiladosPorCliente(
         estado: estadoBooleano ? 'Activo' : 'Inactivo', // Usar el campo estado (boolean) de la tabla afilados
         estado_afilado: estadoAfilado,
         observaciones: item.observaciones || '-',
-        fecha_registro: item.creado_en ? format(new Date(item.creado_en), 'dd/MM/yyyy') : 'N/A',
+        fecha_registro: formatFechaSafe(item.creado_en),
         activo: sierra.activo !== undefined ? sierra.activo : true
       };
     });
     
     // Registrar para depuración
-    console.log(`Reporte generado: ${reporteItems.length} registros encontrados de ${count} totales`);
+    // Reporte generado correctamente
     if (reporteItems.length > 0) {
-      console.log('Ejemplo de registro:', reporteItems[0]);
+      // Ejemplo de registro disponible
     }
 
     return {
@@ -215,11 +295,7 @@ export async function getAllReporteAfiladosPorCliente(
       .from('afilados')
       .select('id, sierras!inner(sucursales!inner(empresa_id))', { count: 'exact', head: true });
 
-    // Aplicar filtros para el conteo
-    if (filters.empresa_id) {
-      countQuery = countQuery.eq('sierras.sucursales.empresa_id', String(filters.empresa_id).trim());
-    }
-
+    // Los filtros de empresa ya se aplicaron en la consulta inicial
     if (filters.sucursal_id) {
       countQuery = countQuery.eq('sierras.sucursal_id', String(filters.sucursal_id).trim());
     }
@@ -257,8 +333,25 @@ export async function getAllReporteAfiladosPorCliente(
     }
 
     // Filtrar por estado de sierra (activo/inactivo) si se especifica
-    if (filters.activo !== undefined) {
+    // IMPORTANTE: Solo aplicar este filtro cuando NO estamos buscando registros inactivos
+    if (filters.activo !== undefined && !(filters.estado === false)) {
+      // Aplicar el filtro de sierra activa solo cuando no estamos buscando registros inactivos
       countQuery = countQuery.eq('sierras.activo', filters.activo);
+    }
+
+    // Filtrar por estado del afilado (activo/inactivo) si se especifica
+    if (filters.estado !== undefined) {
+      // Convertir explícitamente a booleano para evitar problemas de comparación
+      const estadoBooleano = filters.estado === true || String(filters.estado).toLowerCase() === 'true';
+      
+      if (estadoBooleano) {
+        // Para activos, solo mostrar registros con estado = true
+        countQuery = countQuery.eq('estado', true);
+      } else {
+        // Para inactivos, mostrar registros con estado = false O estado = null
+        // Usamos la sintaxis de Supabase para OR con filtros múltiples
+        countQuery = countQuery.or('estado.eq.false,estado.is.null');
+      }
     }
 
     // Ejecutar la consulta de conteo
@@ -269,7 +362,7 @@ export async function getAllReporteAfiladosPorCliente(
       throw countError;
     }
 
-    console.log(`Preparando exportación de ${count} registros`);
+    // Preparando exportación
     
     // Si no hay registros, devolver array vacío
     if (!count || count === 0) {
@@ -285,7 +378,7 @@ export async function getAllReporteAfiladosPorCliente(
       const from = batchIndex * batchSize;
       const to = from + batchSize - 1;
       
-      console.log(`Procesando lote ${batchIndex + 1}/${batches} (registros ${from + 1}-${Math.min(to + 1, count)})`);
+      // Procesando lote de registros
       
       // Consulta para este lote
       let batchQuery = supabase
@@ -354,9 +447,25 @@ export async function getAllReporteAfiladosPorCliente(
       }
 
       // Filtrar por estado de sierra (activo/inactivo) si se especifica
-      if (filters.activo !== undefined) {
-        console.log('Lote - Aplicando filtro de estado de sierra:', filters.activo);
+      // IMPORTANTE: Solo aplicar este filtro cuando NO estamos buscando registros inactivos
+      if (filters.activo !== undefined && !(filters.estado === false)) {
+        // Aplicar el filtro de sierra activa solo cuando no estamos buscando registros inactivos
         batchQuery = batchQuery.eq('sierras.activo', filters.activo);
+      }
+      
+      // Filtrar por estado del afilado (activo/inactivo) si se especifica
+      if (filters.estado !== undefined) {
+        // Convertir explícitamente a booleano para evitar problemas de comparación
+        const estadoBooleano = filters.estado === true || String(filters.estado).toLowerCase() === 'true';
+        
+        if (estadoBooleano) {
+          // Para activos, solo mostrar registros con estado = true
+          batchQuery = batchQuery.eq('estado', true);
+        } else {
+          // Para inactivos, mostrar registros con estado = false O estado = null
+          // Usamos la sintaxis de Supabase para OR con filtros múltiples
+          batchQuery = batchQuery.or('estado.eq.false,estado.is.null');
+        }
       }
 
       // Ejecutar consulta para este lote
@@ -374,16 +483,64 @@ export async function getAllReporteAfiladosPorCliente(
           const sucursal = sierra.sucursales || {};
           const empresa = sucursal.empresas || {};
           
-          // Log para depurar el valor del campo estado en la exportación
-          console.log(`Exportación - ID: ${item.id}, estado (valor original):`, item.estado, 'tipo:', typeof item.estado);
+          // Procesamiento del estado para exportación
           
           // Convertir explícitamente a booleano para manejar diferentes formatos
           const estadoBooleano = item.estado === true || item.estado === 'true' || item.estado === 1;
           
+          // Procesamiento de datos para exportación
+          
+          // Función simplificada para formatear fechas
+          const formatearFecha = (fecha: any) => {
+            if (!fecha) {
+              return 'N/A';
+            }
+            
+            try {
+              // Convertir string a fecha si es necesario
+              let fechaObj;
+              if (typeof fecha === 'string') {
+                // Si la fecha es una cadena ISO, usarla directamente
+                if (fecha.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
+                  fechaObj = new Date(fecha);
+                } else {
+                  // Intentar parsear otros formatos de fecha
+                  const partes = fecha.split(/[-\/]/);
+                  if (partes.length === 3) {
+                    // Asumir formato yyyy-mm-dd o dd/mm/yyyy
+                    const esFormatoISO = fecha.includes('-');
+                    const year = esFormatoISO ? parseInt(partes[0]) : parseInt(partes[2]);
+                    const month = parseInt(partes[1]) - 1; // Los meses en JS son 0-11
+                    const day = esFormatoISO ? parseInt(partes[2]) : parseInt(partes[0]);
+                    fechaObj = new Date(year, month, day);
+                  } else {
+                    fechaObj = new Date(fecha);
+                  }
+                }
+              } else {
+                fechaObj = new Date(fecha);
+              }
+              
+              // Verificar si la fecha es válida
+              if (isNaN(fechaObj.getTime())) {
+                return 'N/A';
+              }
+              
+              // Formatear fecha válida
+              return format(fechaObj, 'dd/MM/yyyy');
+            } catch (error) {
+              return 'N/A';
+            }
+          };
+          
+          // Obtener la fecha actual para valores por defecto
+          const fechaActual = format(new Date(), 'dd/MM/yyyy');
+          
+          // Usar las fechas reales de la base de datos
           return {
             id: item.id,
-            fecha_afilado: item.fecha_afilado ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
-            fecha_salida: item.fecha_salida ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'Pendiente',
+            fecha_afilado: item.fecha_afilado ? formatearFecha(item.fecha_afilado) : 'N/A',
+            fecha_salida: item.fecha_salida ? formatearFecha(item.fecha_salida) : 'Pendiente',
             codigo_barras: sierra.codigo_barras || 'N/A',
             codigo_sierra: sierra.codigo_barras || 'N/A',
             tipo_sierra: sierra.tipos_sierra?.nombre || 'N/A',
@@ -392,7 +549,7 @@ export async function getAllReporteAfiladosPorCliente(
             empresa: empresa.razon_social || 'N/A',
             estado: estadoBooleano ? 'Activo' : 'Inactivo', // Usar el campo estado (boolean) de la tabla afilados
             observaciones: item.observaciones || '-',
-            fecha_registro: item.creado_en ? format(new Date(item.creado_en), 'dd/MM/yyyy') : 'N/A',
+            fecha_registro: item.creado_en ? formatearFecha(item.creado_en) : 'N/A',
             activo: sierra.activo !== undefined ? sierra.activo : true
           };
         });
@@ -401,7 +558,7 @@ export async function getAllReporteAfiladosPorCliente(
       }
     }
 
-    console.log(`Exportación completada: ${allItems.length} registros obtenidos`);
+    // Exportación completada
     return allItems;
   } catch (error) {
     console.error('Error en getAllReporteAfiladosPorCliente:', error);

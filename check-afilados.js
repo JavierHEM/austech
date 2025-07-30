@@ -1,0 +1,1 @@
+import { supabase } from './src/lib/supabase-client'; async function checkAfiladosTable() { const { data, error } = await supabase.from('afilados').select('estado').limit(5); console.log('Muestra de registros:', data); console.log('Error:', error); } checkAfiladosTable();

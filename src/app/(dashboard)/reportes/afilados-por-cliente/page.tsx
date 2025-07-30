@@ -107,10 +107,10 @@ export default function ReporteAfiladosPorClientePage() {
       const offset = (page - 1) * pageSize;
       
       // Obtener datos del reporte con paginación
-      console.log('Solicitando reporte con filtros:', filters, 'página:', page, 'tamaño:', pageSize);
+      // Solicitando reporte con filtros aplicados
       const result = await getReporteAfiladosPorCliente(filters, page, pageSize);
       
-      console.log('Resultado del reporte:', result);
+      // Procesando resultado del reporte
       
       // La función ahora devuelve { data: ReporteAfiladoItem[], count: number }
       if (result && 'data' in result && 'count' in result) {
@@ -141,13 +141,9 @@ export default function ReporteAfiladosPorClientePage() {
       // Mostrar indicador de carga
       setIsLoading(true);
       
-      console.log('Exportando todos los registros con filtros:', filtrosAplicados);
-      
       // Usar getAllReporteAfiladosPorCliente para obtener TODOS los registros sin paginación
       // Esta función está diseñada específicamente para la exportación a Excel
       const allData = await getAllReporteAfiladosPorCliente(filtrosAplicados);
-      
-      console.log(`Exportando ${allData.length} registros totales`);
       
       if (!allData || allData.length === 0) {
         setError('No hay datos para exportar');
@@ -159,20 +155,22 @@ export default function ReporteAfiladosPorClientePage() {
         return;
       }
       
-      // Formatear datos para Excel
-      const dataForExcel = allData.map((item: ReporteAfiladoItem) => ({
-        'Empresa': item.empresa,
-        'Sucursal': item.sucursal,
-        'Tipo Sierra': item.tipo_sierra,
-        'Código Sierra': item.codigo_sierra,
-        'Tipo Afilado': item.tipo_afilado,
-        'Fecha Afilado': item.fecha_afilado && !isNaN(new Date(item.fecha_afilado).getTime()) ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy') : 'N/A',
-        'Fecha Salida': item.fecha_salida === 'Pendiente' ? 'Pendiente' : (item.fecha_salida && !isNaN(new Date(item.fecha_salida).getTime())) ? format(new Date(item.fecha_salida), 'dd/MM/yyyy') : 'N/A',
-        'Estado': item.estado,
-        'Fecha Registro': item.fecha_registro && !isNaN(new Date(item.fecha_registro).getTime()) ? format(new Date(item.fecha_registro), 'dd/MM/yyyy') : 'N/A',
-        'Activo Sierra': item.activo ? 'Sí' : 'No',
-        'Observaciones': item.observaciones || ''
-      }));
+      // Formatear datos para Excel usando las fechas reales de cada item
+      const dataForExcel = allData.map((item: ReporteAfiladoItem) => {
+        return {
+          'Empresa': item.empresa || 'N/A',
+          'Sucursal': item.sucursal || 'N/A',
+          'Tipo Sierra': item.tipo_sierra || 'N/A',
+          'Código Sierra': item.codigo_sierra || 'N/A',
+          'Tipo Afilado': item.tipo_afilado || 'N/A',
+          'Fecha Afilado': item.fecha_afilado || 'N/A',
+          'Fecha Salida': item.fecha_salida || 'Pendiente',
+          'Estado': item.estado || 'N/A',
+          'Fecha Registro': item.fecha_registro || 'N/A',
+          'Activo Sierra': item.activo ? 'Sí' : 'No',
+          'Observaciones': item.observaciones || ''
+        };
+      });
       
       // Crear libro de Excel
       const workbook = XLSX.utils.book_new();
@@ -330,10 +328,10 @@ export default function ReporteAfiladosPorClientePage() {
                             <TableCell>{item.codigo_sierra}</TableCell>
                             <TableCell>{item.tipo_afilado}</TableCell>
                             <TableCell>
-                              {item.fecha_afilado && !isNaN(new Date(item.fecha_afilado).getTime()) ? format(new Date(item.fecha_afilado), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                              {item.fecha_afilado}
                             </TableCell>
                             <TableCell>
-                              {item.fecha_salida === 'Pendiente' ? 'Pendiente' : (item.fecha_salida && !isNaN(new Date(item.fecha_salida).getTime())) ? format(new Date(item.fecha_salida), 'dd/MM/yyyy', { locale: es }) : 'N/A'}
+                              {item.fecha_salida}
                             </TableCell>
                             <TableCell>
                               <Badge variant={item.estado === 'Activo' ? "default" : "secondary"}>
