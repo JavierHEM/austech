@@ -19,7 +19,6 @@ export const getSierras = async (
   filters: SierraFilters = {}
 ): Promise<PaginatedResponse<SierraConRelaciones>> => {
   try {
-    console.log('Obteniendo sierras con filtros:', { page, pageSize, filters });
     
     // Iniciar la consulta
     let query = supabase

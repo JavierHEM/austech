@@ -5,6 +5,8 @@ import '@/styles/datepicker.css'
 import '@/styles/datepicker-custom.css'
 import { Providers } from './providers'
 import { SessionKeepAlive } from '@/components/SessionKeepAlive'
+import { RedirectControlProvider } from '@/components/auth/RedirectControl'
+import { UniversalPersistenceProvider } from '@/components/UniversalPersistenceProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -27,8 +29,14 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          <SessionKeepAlive interval={30} />
-          {children}
+          <div data-redirect-provider="true">
+            <RedirectControlProvider>
+              <UniversalPersistenceProvider>
+                       <SessionKeepAlive interval={30} />
+                       {children}
+              </UniversalPersistenceProvider>
+            </RedirectControlProvider>
+          </div>
         </Providers>
       </body>
     </html>

@@ -4,7 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase-client';
 
-export type UserRole = 'gerente' | 'administrador' | 'cliente' | null;
+export type UserRole = 'gerente' | 'supervisor' | 'cliente' | null;
 
 type RoleData = {
   id: number;
@@ -35,7 +35,6 @@ export function useAuth() {
         return userRoleCache.get(userId) || null;
       }
       
-      // console.log('Obteniendo rol para el usuario ID:', userId);
       
       // Primero intentamos obtener el usuario con su rol_id
       const { data: userData, error: userError } = await supabase
@@ -45,17 +44,16 @@ export function useAuth() {
         .single();
 
       if (userError) {
-        // Error al obtener el usuario
+        console.error('❌ Error al obtener datos del usuario:', userError);
         
         // Si el error es que no se encontró el usuario, intentamos crearlo
         if (userError.code === 'PGRST116') { // Código para 'no se encontró ningún registro'
-
+          console.warn('⚠️ Usuario no encontrado en tabla usuarios, código:', userError.code);
           
           // Obtener información del usuario desde auth
           const { data: authUser } = await supabase.auth.getUser(userId);
           
           if (authUser?.user) {
-
             // Aquí podrías implementar lógica para crear automáticamente el usuario
             // con un rol predeterminado si lo deseas
           }
@@ -65,16 +63,15 @@ export function useAuth() {
       }
       
       if (!userData) {
-        // No se encontraron datos del usuario
+        console.warn('⚠️ No se encontraron datos del usuario');
         return null;
       }
       
       if (userData.rol_id === null) {
-        // Usuario sin rol_id asignado
+        console.warn('⚠️ Usuario sin rol_id asignado');
         return null;
       }
 
-      // console.log('ID de rol del usuario:', userData.rol_id, 'Email:', userData.email);
       
       // Ahora obtenemos el nombre del rol desde la tabla roles
       
@@ -110,14 +107,14 @@ export function useAuth() {
       // Verificar el rol usando el nombre normalizado
       if (normalizedRoleName === 'gerente') {
         typedRole = 'gerente';
-      } else if (normalizedRoleName === 'administrador') {
-        typedRole = 'administrador';
+      } else if (normalizedRoleName === 'supervisor') {
+        typedRole = 'supervisor';
       } else if (normalizedRoleName === 'cliente') {
         typedRole = 'cliente';
       } else {
         // Si no coincide exactamente, intentar hacer una coincidencia parcial
-        if (normalizedRoleName.includes('admin')) {
-          typedRole = 'administrador';
+        if (normalizedRoleName.includes('supervisor')) {
+          typedRole = 'supervisor';
         } else if (normalizedRoleName.includes('gerent')) {
           typedRole = 'gerente';
         } else if (normalizedRoleName.includes('client')) {
@@ -134,31 +131,19 @@ export function useAuth() {
       
       return typedRole;
     } catch (error) {
-      // Error al obtener el rol del usuario
+      console.error('❌ Error en getUserRole:', error);
       return null;
     }
   };
 
-  // Manejar redirecciones basadas en rol (solo cuando se solicita explícitamente)
+  // Función de redirección inteligente: solo redirige clientes
   const handleRoleBasedRedirection = useCallback((userRole: UserRole) => {
-    if (isRedirecting) return; // Evitar redirecciones múltiples
-    
-
-    
-    if (userRole === 'gerente' || userRole === 'administrador') {
-      setIsRedirecting(true);
-
-      router.push('/dashboard');
-    } else if (userRole === 'cliente') {
-      setIsRedirecting(true);
-
+    // Solo redirigir clientes automáticamente, otros roles permanecen donde están
+    if (userRole === 'cliente') {
       router.push('/cliente');
     } else {
-      // Si no hay un rol válido o es null, redirigir al login
-
-      router.push('/login');
     }
-  }, [router, isRedirecting]);
+  }, [router]);
 
   useEffect(() => {
     // Marcar el componente como montado
@@ -198,73 +183,37 @@ export function useAuth() {
 
     initSession();
     
-    // Agregar un manejador de eventos para el enfoque de la ventana
-    const handleFocus = async () => {
-      // Cuando la ventana recupera el foco, verificar la sesión actual
-      try {
-
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          // Error al verificar la sesión en focus
-          return;
-        }
-        
-        // Si hay una sesión activa, actualizar el estado
-        if (session && isMounted.current) {
-
-          setSession(session);
-          
-          // Siempre actualizar el rol para asegurar que esté disponible
-          if (session.user) {
-
-            const userRole = await getUserRole(session.user.id);
-
-            if (isMounted.current) setRole(userRole);
-          }
-        } else {
-
-        }
-      } catch (error) {
-        // Error al verificar sesión en focus
-      }
-    };
-    
-    // Agregar event listeners para detectar cuando la ventana recupera el foco
-    window.addEventListener('focus', handleFocus);
-    
-    // Crear una referencia a la función de manejo de visibilidad para poder eliminarla después
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        handleFocus();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // EVENTOS DE FOCUS Y VISIBILITY ELIMINADOS
+    // Estos eventos causaban redirecciones molestas cuando el usuario cambiaba de pestaña
+    // La sesión se mantiene activa sin necesidad de verificar constantemente
 
     // Suscribirse a cambios de autenticación (una sola vez)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       // console.log('Auth event:', event, session?.user?.id);
+      
       if (!isMounted.current) return;
       
       setSession(session);
       
       if (session?.user) {
+        
         // Usar el rol en caché si está disponible, o obtenerlo si no
         let userRole: UserRole = null;
         
         if (userRoleCache.has(session.user.id)) {
           userRole = userRoleCache.get(session.user.id) || null;
-          // console.log('Usando rol en caché:', userRole);
         } else {
           userRole = await getUserRole(session.user.id);
-          // console.log('Rol actualizado:', userRole);
         }
         
         if (isMounted.current) setRole(userRole);
         
-        // Solo redirigir en eventos específicos (SIGNED_IN)
+        // Redirección inteligente: solo redirige clientes
         if (event === 'SIGNED_IN') {
-          handleRoleBasedRedirection(userRole);
+          if (userRole === 'cliente') {
+            router.push('/cliente');
+          } else {
+          }
         }
       } else {
         if (isMounted.current) setRole(null);
@@ -279,9 +228,7 @@ export function useAuth() {
       isMounted.current = false;
       subscription.unsubscribe();
       
-      // Eliminar los event listeners
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // Los event listeners de focus y visibility ya no existen
     };
   }, [router, handleRoleBasedRedirection]);
 
@@ -302,10 +249,12 @@ export function useAuth() {
       });
 
       if (error) {
+        console.error('❌ use-auth.ts - Error en signInWithPassword:', error);
         throw error;
       }
       
       if (!data.user) {
+        console.error('❌ use-auth.ts - No se pudo iniciar sesión - sin usuario');
         throw new Error('No se pudo iniciar sesión');
       }
 
@@ -316,13 +265,13 @@ export function useAuth() {
       
       return data;
     } catch (error: any) {
+      console.error('❌ use-auth.ts - Error en login:', error);
       throw error;
     }
   };
 
   const logout = async () => {
     try {
-
       setIsRedirecting(false);
       
       // Limpiar la caché de roles antes de cerrar sesión
@@ -335,16 +284,14 @@ export function useAuth() {
       // Cerrar sesión en Supabase
       const { error } = await supabase.auth.signOut();
       if (error) {
-        // Error al cerrar sesión en Supabase
+        console.error('❌ use-auth.ts - Error al cerrar sesión en Supabase:', error);
         throw error;
       }
-      
-
       
       // Forzar la redirección en lugar de esperar al listener
       router.push('/login');
     } catch (error) {
-      // Error al cerrar sesión
+      console.error('❌ use-auth.ts - Error al cerrar sesión:', error);
       // Intentar redireccionar de todos modos
       router.push('/login');
       throw error;
@@ -358,6 +305,6 @@ export function useAuth() {
     login,
     logout,
     isAuthenticated: !!session?.user,
-    isAuthorized: role === 'gerente' || role === 'administrador' || role === 'cliente'
+    isAuthorized: role === 'gerente' || role === 'supervisor' || role === 'cliente'
   };
 }

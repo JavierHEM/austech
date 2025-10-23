@@ -26,7 +26,45 @@ interface SierraBajaResponse {
 }
 
 /**
- * Obtiene todas las bajas masivas con sus relaciones
+ * Obtiene todas las bajas masivas con sus relaciones y sierras
+ */
+export const getBajasMasivasConSierras = async (): Promise<BajaMasivaConRelaciones[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('bajas_masivas')
+      .select(`
+        *,
+        baja_masiva_sierras(
+          sierra_id,
+          estado_anterior,
+          sierras(
+            id,
+            codigo_barras,
+            tipo_sierra_id,
+            estado_id,
+            sucursal_id,
+            tipos_sierra(nombre),
+            estados_sierra(nombre),
+            sucursales(nombre)
+          )
+        )
+      `)
+      .order('fecha_baja', { ascending: false });
+    
+    if (error) {
+      console.error('Error al obtener bajas masivas con sierras:', error);
+      throw new Error(error.message);
+    }
+    
+    return data || [];
+  } catch (error) {
+    console.error('Error en getBajasMasivasConSierras:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene todas las bajas masivas con sus relaciones (función original)
  */
 export const getBajasMasivas = async (): Promise<BajaMasivaConRelaciones[]> => {
   try {

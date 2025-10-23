@@ -17,7 +17,7 @@ export default function NuevoUsuarioPage() {
     }
 
     // Solo administradores y gerentes pueden crear usuarios
-    if (!loading && isAuthenticated && role !== 'administrador' && role !== 'gerente') {
+    if (!loading && isAuthenticated && role !== 'supervisor' && role !== 'gerente') {
       router.push('/dashboard');
     }
   }, [loading, isAuthenticated, role, router]);

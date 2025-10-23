@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Rutas a las que solo pueden acceder administradores y gerentes
+// Rutas a las que solo pueden acceder gerentes y supervisores
 const restrictedPaths = [
   '/afilados',
   '/sierras',
   '/empresas',
   '/sucursales',
-  '/usuarios',
   '/salidas-masivas',
   '/bajas-masivas'
+];
+
+// Rutas a las que solo pueden acceder gerentes (gestión de usuarios)
+const gerenteOnlyPaths = [
+  '/usuarios'
 ];
 
 // Rutas públicas que no requieren autenticación

@@ -58,6 +58,24 @@ export default function ProtectedRoute({
         }
       }
 
+      // Restricción especial para usuarios con rol 'supervisor'
+      if (role === 'supervisor') {
+        // Lista de rutas restringidas para supervisores (solo gestión de usuarios)
+        const rutasRestringidasParaSupervisores = [
+          '/usuarios'
+        ];
+        
+        // Verificar si la ruta actual está restringida para supervisores
+        const esRutaRestringida = rutasRestringidasParaSupervisores.some(ruta => 
+          pathname === ruta || pathname.startsWith(`${ruta}/`)
+        );
+        
+        if (esRutaRestringida) {
+          router.push('/acceso-denegado');
+          return;
+        }
+      }
+
       if (roles.length > 0 && role) {
         // Convertir tanto el rol del usuario como los roles permitidos a minúsculas
         // para hacer la comparación insensible a mayúsculas/minúsculas

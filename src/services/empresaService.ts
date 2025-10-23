@@ -26,7 +26,6 @@ export const getEmpresas = async (
   filters: EmpresaFilters = {}
 ): Promise<PaginatedResponse<Empresa>> => {
   try {
-    console.log('Obteniendo empresas con filtros:', { page, pageSize, filters });
     
     // Iniciar la consulta
     let query = supabase

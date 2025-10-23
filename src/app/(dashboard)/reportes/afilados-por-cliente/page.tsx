@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertCircle } from 'lucide-react';
 
-import ReporteAfiladosFilters from '@/components/reportes/ReporteAfiladosFilters';
+import ReporteAfiladosFiltersFixed from '@/components/reportes/ReporteAfiladosFiltersFixed';
 import { getReporteAfiladosPorCliente, getAllReporteAfiladosPorCliente, ReporteAfiladosPorClienteFilters, ReporteAfiladoItem } from '@/services/reporteService';
 import ClienteRestriction from '@/components/auth/ClienteRestriction';
 import { useAuth } from '@/hooks/use-auth';
@@ -266,7 +266,7 @@ export default function ReporteAfiladosPorClientePage() {
               <CardDescription>Seleccione los filtros para generar el reporte</CardDescription>
             </CardHeader>
             <CardContent>
-              <ReporteAfiladosFilters 
+              <ReporteAfiladosFiltersFixed 
                 onFilter={handleFilter} 
                 empresaIdFijo={empresaIdParam ? empresaIdParam : null}
               />

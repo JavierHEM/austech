@@ -293,20 +293,10 @@ export async function getAllReporteAfiladosPorCliente(
     // Primero, realizar una consulta para obtener el conteo total
     let countQuery = supabase
       .from('afilados')
-      .select('id, sierras!inner(sucursales!inner(empresa_id))', { count: 'exact', head: true });
+      .select('id', { count: 'exact', head: true });
 
-    // Los filtros de empresa ya se aplicaron en la consulta inicial
-    if (filters.sucursal_id) {
-      countQuery = countQuery.eq('sierras.sucursal_id', String(filters.sucursal_id).trim());
-    }
-
-    if (filters.tipo_sierra_id) {
-      countQuery = countQuery.eq('sierras.tipos_sierra.id', String(filters.tipo_sierra_id).trim());
-    }
-
-    if (filters.tipo_afilado_id) {
-      countQuery = countQuery.eq('tipos_afilado.id', String(filters.tipo_afilado_id).trim());
-    }
+    // NOTA: Los filtros por sucursal, tipo_sierra y tipo_afilado no se pueden aplicar
+    // en consultas de conteo (HEAD) porque requieren JOINs. Se aplicarán en la consulta principal.
 
     if (filters.fecha_desde) {
       const fechaDesde = typeof filters.fecha_desde === 'string' 
@@ -332,12 +322,8 @@ export async function getAllReporteAfiladosPorCliente(
       countQuery = countQuery.not('fecha_salida', 'is', null);
     }
 
-    // Filtrar por estado de sierra (activo/inactivo) si se especifica
-    // IMPORTANTE: Solo aplicar este filtro cuando NO estamos buscando registros inactivos
-    if (filters.activo !== undefined && !(filters.estado === false)) {
-      // Aplicar el filtro de sierra activa solo cuando no estamos buscando registros inactivos
-      countQuery = countQuery.eq('sierras.activo', filters.activo);
-    }
+    // NOTA: Para consultas de conteo (HEAD), no podemos usar filtros en relaciones anidadas
+    // El filtro por estado de sierra se aplicará en la consulta principal, no en el conteo
 
     // Filtrar por estado del afilado (activo/inactivo) si se especifica
     if (filters.estado !== undefined) {
@@ -355,12 +341,21 @@ export async function getAllReporteAfiladosPorCliente(
     }
 
     // Ejecutar la consulta de conteo
+    console.log('🔍 Ejecutando consulta de conteo...');
     const { count, error: countError } = await countQuery;
     
     if (countError) {
-      console.error('Error al obtener conteo para exportación:', countError);
+      console.error('❌ Error al obtener conteo para exportación:', countError);
+      console.error('❌ Detalles del error:', {
+        message: countError.message,
+        details: countError.details,
+        hint: countError.hint,
+        code: countError.code
+      });
       throw countError;
     }
+    
+    console.log('✅ Conteo obtenido:', count);
 
     // Preparando exportación
     
@@ -390,22 +385,24 @@ export async function getAllReporteAfiladosPorCliente(
           observaciones,
           estado,
           creado_en,
-          sierras!inner(
+          sierra_id,
+          tipo_afilado_id,
+          sierras(
             id,
             codigo_barras,
             sucursal_id,
             tipo_sierra_id,
             activo,
-            tipos_sierra!inner(id, nombre),
-            sucursales!inner(
+            tipos_sierra(id, nombre),
+            sucursales(
               id, 
               nombre, 
               empresa_id,
-              empresas!inner(id, razon_social)
+              empresas(id, razon_social)
             ),
-            estados_sierra!inner(id, nombre)
+            estados_sierra(id, nombre)
           ),
-          tipos_afilado!inner(id, nombre)
+          tipos_afilado(id, nombre)
         `)
         .order('fecha_afilado', { ascending: false })
         .range(from, to);
@@ -469,12 +466,21 @@ export async function getAllReporteAfiladosPorCliente(
       }
 
       // Ejecutar consulta para este lote
+      console.log(`🔍 Ejecutando consulta para lote ${batchIndex + 1}/${batches}...`);
       const { data: batchData, error: batchError } = await batchQuery;
       
       if (batchError) {
-        console.error(`Error al obtener lote ${batchIndex + 1}:`, batchError);
+        console.error(`❌ Error al obtener lote ${batchIndex + 1}:`, batchError);
+        console.error('❌ Detalles del error:', {
+          message: batchError.message,
+          details: batchError.details,
+          hint: batchError.hint,
+          code: batchError.code
+        });
         throw batchError;
       }
+      
+      console.log(`✅ Lote ${batchIndex + 1} obtenido:`, batchData?.length || 0, 'registros');
 
       // Procesar resultados de este lote
       if (batchData && batchData.length > 0) {
@@ -560,8 +566,15 @@ export async function getAllReporteAfiladosPorCliente(
 
     // Exportación completada
     return allItems;
-  } catch (error) {
-    console.error('Error en getAllReporteAfiladosPorCliente:', error);
+  } catch (error: any) {
+    console.error('❌ Error en getAllReporteAfiladosPorCliente:', error);
+    console.error('❌ Detalles del error:', {
+      message: error?.message || 'Sin mensaje',
+      details: error?.details || 'Sin detalles',
+      hint: error?.hint || 'Sin hint',
+      code: error?.code || 'Sin código',
+      stack: error?.stack || 'Sin stack'
+    });
     throw error;
   }
 }

@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export type AllowedRoles = 'gerente' | 'administrador' | 'cliente' | 'all';
+export type AllowedRoles = 'gerente' | 'supervisor' | 'cliente' | 'all';
 
 interface RoleBasedAccessProps {
   children: ReactNode;
@@ -42,7 +42,7 @@ export default function RoleBasedAccess({
       // Redirigir según el rol
       if (role === 'cliente') {
         router.push(redirectPath || '/dashboardcliente');
-      } else if (role === 'administrador' || role === 'gerente') {
+      } else if (role === 'supervisor' || role === 'gerente') {
         router.push(redirectPath || '/dashboard');
       }
     } else if (role) {
@@ -97,7 +97,7 @@ export default function RoleBasedAccess({
           onClick={() => {
             if (role === 'cliente') {
               router.push('/dashboardcliente');
-            } else if (role === 'administrador' || role === 'gerente') {
+            } else if (role === 'supervisor' || role === 'gerente') {
               router.push('/dashboard');
             } else {
               router.push('/login');

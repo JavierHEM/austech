@@ -20,7 +20,7 @@ export default function Navbar() {
   
   // Determinar los roles del usuario
   const isGerente = userRole === 'gerente';
-  const isAdministrador = userRole === 'administrador';
+  const isSupervisor = userRole === 'supervisor';
   const isCliente = userRole === 'cliente';
 
   const toggleMenu = () => {
@@ -85,7 +85,7 @@ export default function Navbar() {
                 </NavLink>
               )}
               
-              {(isAdministrador || isGerente) && (
+              {(isSupervisor || isGerente) && (
                 <>
                   <NavLink href="/empresas" current={pathname ? pathname.startsWith('/empresas') : false}>
                     Empresas
@@ -106,7 +106,7 @@ export default function Navbar() {
                 </NavLink>
               )}
               
-              {(isAdministrador || isGerente) && (
+              {(isSupervisor || isGerente) && (
                 <>
                   <NavLink href="/salidas-masivas" current={pathname ? pathname.startsWith('/salidas-masivas') : false}>
                     Salidas Masivas
@@ -120,7 +120,7 @@ export default function Navbar() {
                 </>
               )}
               
-              {isAdministrador && (
+              {isSupervisor && (
                 <NavLink href="/usuarios" current={pathname ? pathname.startsWith('/usuarios') : false}>
                   Usuarios
                 </NavLink>
@@ -170,7 +170,7 @@ export default function Navbar() {
               </MobileNavLink>
             )}
             
-            {(isAdministrador || isGerente) && (
+            {(isSupervisor || isGerente) && (
               <>
                 <MobileNavLink href="/empresas" current={pathname ? pathname.startsWith('/empresas') : false}>
                   Empresas
@@ -191,7 +191,7 @@ export default function Navbar() {
               </MobileNavLink>
             )}
             
-            {(isAdministrador || isGerente) && (
+            {(isSupervisor || isGerente) && (
               <>
                 <MobileNavLink href="/salidas-masivas" current={pathname ? pathname.startsWith('/salidas-masivas') : false}>
                   Salidas Masivas
@@ -202,7 +202,7 @@ export default function Navbar() {
               </>
             )}
             
-            {isAdministrador && (
+            {isSupervisor && (
               <MobileNavLink href="/usuarios" current={pathname ? pathname.startsWith('/usuarios') : false}>
                 Usuarios
               </MobileNavLink>

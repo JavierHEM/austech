@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Building, Map, FileText, ArrowUpRight, Scissors, Package, PackageX } from 'lucide-react';
 import { supabase } from '@/lib/supabase-client';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthWrapper } from '@/hooks/use-auth-wrapper';
 import { useToast } from '@/hooks/use-toast';
 import SalidasBajasMasivasResumen from '@/components/dashboard/SalidasBajasMasivasResumen';
 import { useRouter } from 'next/navigation';
@@ -61,7 +61,7 @@ function StatCard({ title, value, description, icon, link, loading }: StatCardPr
 }
 
 export default function DashboardPage() {
-  const { session, role } = useAuth();
+  const { session, role } = useAuthWrapper();
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -149,6 +149,7 @@ export default function DashboardPage() {
 
   return (
     <div className="container mx-auto py-6">
+      
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Panel de Control</h1>
         <p className="text-muted-foreground">

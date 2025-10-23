@@ -8,6 +8,9 @@ interface CompletarAfiladoPageProps {
   };
 }
 
+// Forzar que esta página sea dinámica
+export const dynamic = 'force-dynamic';
+
 export default function CompletarAfiladoPage({ params }: CompletarAfiladoPageProps) {
   const afiladoId = parseInt(params.id);
 

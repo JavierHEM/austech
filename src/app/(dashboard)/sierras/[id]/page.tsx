@@ -36,6 +36,9 @@ interface SierraPageProps {
   };
 }
 
+// Forzar que esta página sea dinámica
+export const dynamic = 'force-dynamic';
+
 export default function SierraPage({ params }: SierraPageProps) {
   const router = useRouter();
   const { toast } = useToast();

@@ -7,8 +7,12 @@ export default function Home() {
   const router = useRouter();
   
   useEffect(() => {
-    // Redirigir automáticamente a la página de login
-    router.push('/login');
+    // Redirigir automáticamente a la página de login después de 3 segundos
+    const timer = setTimeout(() => {
+      router.push('/login');
+    }, 3000);
+
+    return () => clearTimeout(timer);
   }, [router]);
 
   return (

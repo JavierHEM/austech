@@ -64,14 +64,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
               const { data: userData, error: userError } = await supabase
                 .from('usuarios')
-                .select('rol')
+                .select('rol_id')
                 .eq('id', currentSession.user.id)
                 .single();
                 
               if (userError) {
                 // Error al obtener rol del usuario
               } else if (userData) {
-                setRole(userData.rol);
+                setRole(userData.rol_id);
               }
             } catch (roleError) {
               // Error al consultar rol
@@ -101,14 +101,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
               const { data: userData, error: userError } = await supabase
                 .from('usuarios')
-                .select('rol')
+                .select('rol_id')
                 .eq('id', newSession.user.id)
                 .single();
                 
               if (userError) {
                 // Error al obtener rol del usuario
               } else if (userData) {
-                setRole(userData.rol);
+                setRole(userData.rol_id);
               }
             } catch (roleError) {
               // Error al consultar rol

@@ -169,7 +169,7 @@ export default function AfiladosPage() {
           id: number;
           estado_id: number;
           codigo_barras: string;
-          tipo_id: number;
+          tipo_sierra_id: number;
           sucursal_id: number;
           tipos_sierra: { nombre: string } | null;
           estados_sierra: { nombre: string } | null;
@@ -178,7 +178,7 @@ export default function AfiladosPage() {
         
         const { data: sierras } = await supabase
           .from('sierras')
-          .select('id, estado_id, codigo_barras, tipo_id, sucursal_id, tipos_sierra:tipo_id(nombre), estados_sierra:estado_id(nombre), sucursales:sucursal_id(nombre)')
+          .select('id, estado_id, codigo_barras, tipo_sierra_id, sucursal_id, tipos_sierra:tipo_sierra_id(nombre), estados_sierra:estado_id(nombre), sucursales:sucursal_id(nombre)')
           .in('id', sierraIds) as { data: SierraData[] | null };
         
         // Actualizar el estado de las sierras listas para retiro

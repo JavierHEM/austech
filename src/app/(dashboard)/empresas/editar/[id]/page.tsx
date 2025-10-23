@@ -11,6 +11,9 @@ interface EditarEmpresaPageProps {
   };
 }
 
+// Forzar que esta página sea dinámica
+export const dynamic = 'force-dynamic';
+
 export default function EditarEmpresaPage({ params }: EditarEmpresaPageProps) {
   const empresaId = parseInt(params.id);
 

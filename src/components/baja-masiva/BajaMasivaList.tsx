@@ -27,7 +27,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { getBajasMasivas, deleteBajaMasiva } from '@/services/bajaMasivaService';
+import { getBajasMasivasConSierras, deleteBajaMasiva } from '@/services/bajaMasivaService';
 import { BajaMasivaConRelaciones } from '@/types/bajaMasiva';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -46,7 +46,7 @@ export default function BajaMasivaList() {
   const loadBajasMasivas = async () => {
     try {
       setLoading(true);
-      const data = await getBajasMasivas();
+      const data = await getBajasMasivasConSierras();
       setBajasMasivas(data);
     } catch (error) {
       console.error('Error al cargar bajas masivas:', error);

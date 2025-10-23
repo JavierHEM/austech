@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthWrapper } from '@/hooks/use-auth-wrapper';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginForm() {
@@ -9,12 +9,12 @@ export default function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { login } = useAuth();
+  const { login } = useAuthWrapper();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       toast({
         title: 'Error',
@@ -25,14 +25,14 @@ export default function LoginForm() {
     }
 
     setLoading(true);
-    
+
     try {
       await login(email, password);
       // Login exitoso - no necesitamos log aquí ya que la redirección será manejada por el hook
     } catch (error: any) {
       // Formatear el mensaje de error para que sea más amigable
       let errorMessage = 'No se pudo iniciar sesión. Verifica tus credenciales.';
-      
+
       if (error.message) {
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = 'Credenciales inválidas. Verifica tu email y contraseña.';
@@ -40,7 +40,7 @@ export default function LoginForm() {
           errorMessage = 'Tu email no ha sido confirmado. Por favor revisa tu bandeja de entrada.';
         }
       }
-      
+
       toast({
         title: 'Error de autenticación',
         description: errorMessage,

@@ -8,6 +8,9 @@ interface AfiladoSierraPageProps {
   };
 }
 
+// Forzar que esta página sea dinámica
+export const dynamic = 'force-dynamic';
+
 export default function AfiladoSierraPage({ params }: AfiladoSierraPageProps) {
   const sierraId = parseInt(params.id);
 

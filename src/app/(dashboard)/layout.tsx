@@ -25,7 +25,7 @@ import { Toaster } from '@/components/ui/toaster';
 // El ThemeProvider ahora está en el archivo providers.tsx
 import { ModeToggle } from '@/components/mode-toggle';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthWrapper } from '@/hooks/use-auth-wrapper';
 
 interface NavItem {
   label: string;
@@ -51,42 +51,42 @@ const navCategories: NavCategory[] = [
         href: '/dashboard',
         icon: <Home className="h-5 w-5" />,
         isActive: (pathname) => pathname ? (pathname === '/dashboard' || pathname === '/cliente') : false,
-        requiredRoles: ['gerente', 'administrador', 'cliente'] // Todos los roles pueden ver el inicio
+        requiredRoles: ['gerente', 'supervisor', 'cliente'] // Todos los roles pueden ver el inicio
       },
       {
         label: 'Empresas',
         href: '/empresas',
         icon: <Building className="h-5 w-5" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/empresas') : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver empresas
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver empresas
       },
       {
         label: 'Sucursales',
         href: '/sucursales',
         icon: <Map className="h-5 w-5" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/sucursales') : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver sucursales
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver sucursales
       },
       {
         label: 'Herramientas',
         href: '/sierras',
         icon: <Scissors className="h-5 w-5" />,
         isActive: (pathname) => pathname ? (pathname.startsWith('/sierras') && pathname !== '/sierras/buscar' && !pathname.startsWith('/tipos-sierra')) : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver sierras
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver sierras
       },
       {
         label: 'Buscar Sierra',
         href: '/sierras/buscar',
         icon: <Barcode className="h-5 w-5" />,
         isActive: (pathname) => pathname ? pathname === '/sierras/buscar' : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden buscar sierras
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden buscar sierras
       },
       {
         label: 'Afilados',
         href: '/afilados',
         icon: <Scissors className="h-5 w-5 rotate-180" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/afilados') : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver afilados
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver afilados
       }
     ]
   },
@@ -98,14 +98,14 @@ const navCategories: NavCategory[] = [
         href: '/salidas-masivas',
         icon: <ArrowDownToLine className="h-5 w-5" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/salidas-masivas') : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver salidas masivas
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver salidas masivas
       },
       {
         label: 'Bajas Masivas',
         href: '/bajas-masivas',
         icon: <XCircle className="h-5 w-5" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/bajas-masivas') : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver bajas masivas
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver bajas masivas
       }
     ]
   },
@@ -117,7 +117,7 @@ const navCategories: NavCategory[] = [
         href: '/reportes/afilados-por-cliente',
         icon: <FileSpreadsheet className="h-5 w-5" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/reportes/afilados-por-cliente') : false,
-        requiredRoles: ['gerente', 'administrador', 'cliente'] // Todos los roles pueden ver reportes
+        requiredRoles: ['gerente', 'supervisor', 'cliente'] // Todos los roles pueden ver reportes
       }
     ]
   },
@@ -129,14 +129,14 @@ const navCategories: NavCategory[] = [
         href: '/tipos-sierra',
         icon: <Scissors className="h-5 w-5 rotate-45" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/tipos-sierra') : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver tipos de sierra
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver tipos de sierra
       },
       {
         label: 'Tipos de Afilado',
         href: '/tipos-afilado',
         icon: <Scissors className="h-5 w-5 rotate-90" />,
         isActive: (pathname) => pathname ? pathname.startsWith('/tipos-afilado') : false,
-        requiredRoles: ['gerente', 'administrador'] // Solo gerentes y administradores pueden ver tipos de afilado
+        requiredRoles: ['gerente', 'supervisor'] // Solo gerentes y supervisores pueden ver tipos de afilado
       }
     ]
   },
@@ -163,8 +163,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
-  const { logout, session, role, loading } = useAuth();
+  const { logout, session, role, loading } = useAuthWrapper();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -229,7 +230,20 @@ export default function DashboardLayout({
                 <span className="ml-2 text-muted-foreground">Rol:</span> <span className="font-medium">{role}</span>
               </div>
               <ModeToggle />
-              <Button variant="ghost" size="icon" onClick={logout}>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  disabled={isLoggingOut}
+                  onClick={async () => {
+                    if (isLoggingOut) return;
+                    setIsLoggingOut(true);
+                    try {
+                      await logout();
+                    } catch (error) {
+                      setIsLoggingOut(false);
+                    }
+                  }}
+                >
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>

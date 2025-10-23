@@ -77,7 +77,6 @@ export const getAfilados = async (
       .order(sortField, { ascending: sortDirection === 'asc' })
       .range(from, to);
       
-    console.log('Consultando afilados con ordenamiento por:', sortField, sortDirection);
     
     // Aplicar filtros si existen
     if (filters) {
@@ -122,13 +121,6 @@ export const getAfilados = async (
       throw new Error(error.message);
     }
     
-    // Log de las fechas recibidas para diagnóstico
-    if (data && data.length > 0) {
-      console.log('Fechas de afilado recibidas de la base de datos:');
-      data.forEach((afilado, index) => {
-        console.log(`Afilado #${index + 1} - ID: ${afilado.id}, Sierra: ${afilado.sierra_id}, Fecha afilado:`, afilado.fecha_afilado);
-      });
-    }
     
     // Corregir el problema de zona horaria para las fechas
     const processedData = data?.map(afilado => {

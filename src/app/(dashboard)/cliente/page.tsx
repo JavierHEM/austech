@@ -1,106 +1,250 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { usePageState, usePersistence } from '@/components/UniversalPersistenceProvider';
 import { supabase } from '@/lib/supabase-client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, CircleCheck, CircleX, Clock, FileText, PieChart as PieChartIcon, Scissors, AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { 
+  CalendarDays, 
+  CircleCheck, 
+  CircleX, 
+  Clock, 
+  FileText, 
+  PieChart as PieChartIcon, 
+  Scissors, 
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  Activity,
+  Zap,
+  Target,
+  BarChart3,
+  Users,
+  Building2
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AfiladosTendenciaChart } from '@/components/AfiladosTendenciaChart';
 
-// Tipos de datos
+// Tipos de datos optimizados
 type SierraStats = {
   total: number;
   activas: number;
   inactivas: number;
-  porTipo: { name: string; value: number }[];
+  porTipo: { name: string; value: number; percentage: number }[];
+  eficiencia: number; // Porcentaje de sierras activas
 };
 
 type AfiladoStats = {
   total: number;
-  ultimosMeses: { name: string; cantidad: number; mes?: string; año?: number }[];
-  porTipo: { name: string; value: number }[];
+  ultimosMeses: { name: string; cantidad: number; mes?: string; año?: number; trend?: 'up' | 'down' | 'stable' }[];
+  porTipo: { name: string; value: number; percentage: number }[];
+  promedioMensual: number;
+  tendencia: 'up' | 'down' | 'stable';
 };
 
-type AfiladosData = {
-  muestra: any[];
-  total: number;
-  porMes: Record<string, number>;
-  mesesClaves: {clave: string, fecha: Date}[];
+type ProximosAfilados = {
+  id: string;
+  codigo_barras: string;
+  tipo: string;
+  fecha_estimada: string;
+  dias_restantes: number;
+  urgencia: 'critica' | 'alta' | 'media' | 'baja';
+  ultimoAfilado: string;
 };
 
 type DashboardStats = {
   sierras: SierraStats;
   afilados: AfiladoStats;
-  proximosAfilados: {
-    id: string;
-    codigo_barras: string;
-    tipo: string;
-    fecha_estimada: string;
-    dias_restantes: number;
-  }[];
+  proximosAfilados: ProximosAfilados[];
+  rendimiento: {
+    eficienciaGeneral: number;
+    sierrasCriticas: number;
+    afiladosEsteMes: number;
+    promedioDiasAfilado: number;
+  };
+  ultimaActualizacion: string;
 };
 
-// Colores para los gráficos
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82ca9d'];
+type CacheData = {
+  stats: DashboardStats | null;
+  timestamp: number;
+  empresaId: string;
+};
+
+// Colores optimizados para mejor contraste
+const COLORS = {
+  primary: '#0088FE',
+  success: '#00C49F',
+  warning: '#FFBB28',
+  danger: '#FF8042',
+  info: '#8884D8',
+  secondary: '#82ca9d'
+};
+
+// Configuración de caché (5 minutos)
+const CACHE_DURATION = 5 * 60 * 1000;
+
+// Función para obtener todos los registros con paginación automática
+const getAllRecordsWithPagination = async (query: any, maxRecords = 2000) => {
+  const allRecords: any[] = [];
+  const limit = 1000; // Límite por página
+  
+  
+  // Primera página
+  let { data, error } = await query.limit(limit);
+  
+  if (error) {
+    console.error('❌ Error en primera página:', error);
+    throw error;
+  }
+  
+  if (!data || data.length === 0) {
+    return [];
+  }
+  
+  allRecords.push(...data);
+  
+  // Si obtenimos menos de 1000 registros, no hay más páginas
+  if (data.length < limit) {
+    return allRecords;
+  }
+  
+  // Páginas adicionales
+  let page = 2;
+  while (allRecords.length < maxRecords) {
+    
+    const { data: nextData, error: nextError } = await query
+      .range((page - 1) * limit, page * limit - 1);
+    
+    if (nextError) {
+      console.error('❌ Error en página adicional:', nextError);
+      throw nextError;
+    }
+    
+    if (!nextData || nextData.length === 0) {
+      break;
+    }
+    
+    allRecords.push(...nextData);
+    
+    // Si obtenemos menos registros que el límite, hemos llegado al final
+    if (nextData.length < limit) {
+      break;
+    }
+    
+    page++;
+  }
+  
+  return allRecords.slice(0, maxRecords);
+};
 
 export default function ClienteDashboardPage() {
   const { session } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [afiladosData, setAfiladosData] = useState<AfiladosData | null>(null);
+  const { saveState, loadState } = usePersistence();
   
-  // Función para cargar datos de ejemplo en caso de error
-  const setDatosEjemplo = () => {
-    setStats({
-      sierras: {
-        total: 24,
-        activas: 18,
-        inactivas: 6,
-        porTipo: [
-          { name: 'Cinta', value: 12 },
-          { name: 'Circular', value: 8 },
-          { name: 'Sinfin', value: 4 }
-        ]
-      },
-      afilados: {
-        total: 156,
-        ultimosMeses: [
-          { name: 'Ene 2025', cantidad: 22 },
-          { name: 'Feb 2025', cantidad: 18 },
-          { name: 'Mar 2025', cantidad: 24 },
-          { name: 'Abr 2025', cantidad: 30 },
-          { name: 'May 2025', cantidad: 28 },
-          { name: 'Jun 2025', cantidad: 34 }
-        ],
-        porTipo: [
-          { name: 'Estándar', value: 98 },
-          { name: 'Premium', value: 58 }
-        ]
-      },
-      proximosAfilados: [
-        { id: '1', codigo_barras: 'S001', tipo: 'Cinta', fecha_estimada: '2025-06-05', dias_restantes: 2 },
-        { id: '2', codigo_barras: 'S002', tipo: 'Circular', fecha_estimada: '2025-06-10', dias_restantes: 7 },
-        { id: '3', codigo_barras: 'S003', tipo: 'Sinfin', fecha_estimada: '2025-06-01', dias_restantes: -2 }
-      ]
-    });
-    setError(null);
-  };
+  // Persistencia del estado del dashboard
+  const [dashboardState, setDashboardState] = usePageState('cliente-dashboard-state', {
+    stats: null,
+    timestamp: 0,
+    empresaId: ''
+  });
+  
+  // Estados principales
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!session?.user?.id) {
-        setDatosEjemplo();
+  // Memoización de datos procesados
+  const processedStats = useMemo(() => {
+    if (!dashboardState.stats) return null;
+    
+    const stats = dashboardState.stats as DashboardStats;
+    
+    // Calcular métricas adicionales
+    const eficienciaGeneral = stats.sierras.total > 0 
+      ? Math.round((stats.sierras.activas / stats.sierras.total) * 100)
+      : 0;
+    
+    const sierrasCriticas = stats.proximosAfilados.filter(s => s.urgencia === 'critica').length;
+    
+    const afiladosEsteMes = stats.afilados.ultimosMeses.length > 0
+      ? stats.afilados.ultimosMeses[stats.afilados.ultimosMeses.length - 1]?.cantidad || 0
+      : 0;
+    
+    const promedioDiasAfilado = stats.proximosAfilados.length > 0
+      ? Math.round(stats.proximosAfilados.reduce((acc, s) => acc + s.dias_restantes, 0) / stats.proximosAfilados.length)
+      : 0;
+
+    return {
+      ...stats,
+      rendimiento: {
+        eficienciaGeneral,
+        sierrasCriticas,
+        afiladosEsteMes,
+        promedioDiasAfilado
+      }
+    };
+  }, [dashboardState.stats]);
+
+  // Función para determinar urgencia
+  const getUrgencia = useCallback((diasRestantes: number): 'critica' | 'alta' | 'media' | 'baja' => {
+    if (diasRestantes < 0) return 'critica';
+    if (diasRestantes <= 3) return 'alta';
+    if (diasRestantes <= 7) return 'media';
+    return 'baja';
+  }, []);
+
+  // Función para obtener color de urgencia
+  const getUrgenciaColor = useCallback((urgencia: string) => {
+    switch (urgencia) {
+      case 'critica': return 'text-red-600 bg-red-50 dark:bg-red-950';
+      case 'alta': return 'text-orange-600 bg-orange-50 dark:bg-orange-950';
+      case 'media': return 'text-yellow-600 bg-yellow-50 dark:bg-yellow-950';
+      case 'baja': return 'text-green-600 bg-green-50 dark:bg-green-950';
+      default: return 'text-gray-600 bg-gray-50 dark:bg-gray-950';
+    }
+  }, []);
+
+  // Función para obtener icono de tendencia
+  const getTrendIcon = useCallback((trend: string) => {
+    switch (trend) {
+      case 'up': return <TrendingUp className="h-4 w-4 text-green-600" />;
+      case 'down': return <TrendingDown className="h-4 w-4 text-red-600" />;
+      default: return <Activity className="h-4 w-4 text-blue-600" />;
+    }
+  }, []);
+
+  // Función para cargar datos con caché inteligente
+  const fetchDashboardData = useCallback(async (forceRefresh = false) => {
+    if (!session?.user?.id) return;
+
+    try {
+      // Verificar caché
+      const cachedData = loadState('cliente-dashboard-cache', null) as CacheData | null;
+      const now = Date.now();
+      
+      if (!forceRefresh && cachedData && (now - cachedData.timestamp) < CACHE_DURATION) {
+        setDashboardState({
+          stats: cachedData.stats,
+          timestamp: cachedData.timestamp,
+          empresaId: cachedData.empresaId
+        });
+        setLoading(false);
         return;
       }
       
-      try {
         setLoading(true);
+      setRefreshing(true);
         
-        // 1. Obtener la empresa del usuario
+      // 1. Obtener empresa del usuario (optimizado)
         const { data: userData, error: userError } = await supabase
           .from('usuarios')
           .select('empresa_id')
@@ -113,62 +257,94 @@ export default function ClienteDashboardPage() {
         
         const empresaId = userData.empresa_id;
         
-        // 2. Obtener las sucursales de la empresa
-        const { data: sucursalesData, error: sucursalesError } = await supabase
+      // 2. Consultas paralelas para mejor rendimiento
+      const [sucursalesResult, empresaResult] = await Promise.all([
+        supabase
           .from('sucursales')
-          .select('id')
-          .eq('empresa_id', empresaId);
-          
-        if (sucursalesError) throw sucursalesError;
+          .select('id, nombre')
+          .eq('empresa_id', empresaId),
+        supabase
+          .from('empresas')
+          .select('razon_social')
+          .eq('id', empresaId)
+          .single()
+      ]);
+      
+      if (sucursalesResult.error) throw sucursalesResult.error;
+      if (empresaResult.error) throw empresaResult.error;
+      
+      if (!sucursalesResult.data || sucursalesResult.data.length === 0) {
+        // Sin sucursales
+        const emptyStats: DashboardStats = {
+          sierras: { total: 0, activas: 0, inactivas: 0, porTipo: [], eficiencia: 0 },
+          afilados: { total: 0, ultimosMeses: [], porTipo: [], promedioMensual: 0, tendencia: 'stable' },
+          proximosAfilados: [],
+          rendimiento: { eficienciaGeneral: 0, sierrasCriticas: 0, afiladosEsteMes: 0, promedioDiasAfilado: 0 },
+          ultimaActualizacion: new Date().toISOString()
+        };
         
-        if (!sucursalesData || sucursalesData.length === 0) {
-          // Si no hay sucursales, no hay sierras
-          setStats({
-            sierras: {
-              total: 0,
-              activas: 0,
-              inactivas: 0,
-              porTipo: []
-            },
-            afilados: {
-              total: 0,
-              ultimosMeses: [],
-              porTipo: []
-            },
-            proximosAfilados: []
-          });
+        const cacheData: CacheData = {
+          stats: emptyStats,
+          timestamp: now,
+          empresaId
+        };
+        
+        saveState('cliente-dashboard-cache', cacheData);
+        setDashboardState({ stats: emptyStats, timestamp: now, empresaId });
           setLoading(false);
+        setRefreshing(false);
           return;
         }
         
-        // Obtener IDs de sucursales
-        const sucursalIds = sucursalesData.map(s => s.id);
+      const sucursalIds = sucursalesResult.data.map(s => s.id);
         
-        // 2. Obtener estadísticas de sierras para todas las sucursales de la empresa
-        const { data: sierrasData, error: sierrasError } = await supabase
-          .from('sierras')
-          .select('id, codigo_barras, activo, tipo_sierra_id, tipos_sierra(nombre), sucursal_id')
-          .in('sucursal_id', sucursalIds);
-          
-        if (sierrasError) throw sierrasError;
-        
-        // 3. Obtener estadísticas de afilados para las sierras de las sucursales
-        const sierraIds = sierrasData?.map(s => s.id) || [];
-        
-        // Definir una variable para almacenar los datos procesados de afilados
-        let afiladosDataTemp: AfiladosData | null = null;
-        let afiladosError = null;
-        
-        if (sierraIds.length > 0) {
-          // Cargar afilados por mes directamente para evitar el límite de 1000 registros
-
-          
-          // Inicializar contador de afilados por mes
+      // 3. Consultas paralelas para sierras y afilados
+      const [sierrasData, afiladosCountResult] = await Promise.all([
+        getAllRecordsWithPagination(
+          supabase
+            .from('sierras')
+            .select(`
+              id, 
+              codigo_barras, 
+              activo, 
+              tipo_sierra_id,
+              tipos_sierra(nombre),
+              sucursal_id,
+              sucursales(nombre)
+            `)
+            .in('sucursal_id', sucursalIds),
+          2000 // Máximo 2000 sierras
+        ),
+        supabase
+          .from('afilados')
+          .select('id', { count: 'exact', head: true })
+          .in('sierra_id', sucursalesResult.data.map(s => s.id)) // Usar IDs de sucursales como proxy
+      ]);
+      
+      const totalAfilados = afiladosCountResult.count || 0;
+      
+      // 4. Procesar datos de sierras
+      const sierrasActivas = sierrasData.filter(s => s.activo);
+      const sierrasInactivas = sierrasData.filter(s => !s.activo);
+      
+      // Agrupar por tipo con porcentajes
+      const sierrasPorTipo: Record<string, number> = {};
+      sierrasData.forEach(sierra => {
+        const tipoNombre = sierra.tipos_sierra?.nombre || 'Sin tipo';
+        sierrasPorTipo[tipoNombre] = (sierrasPorTipo[tipoNombre] || 0) + 1;
+      });
+      
+      const sierrasPorTipoArray = Object.entries(sierrasPorTipo).map(([name, value]) => ({
+        name,
+        value,
+        percentage: Math.round((value / sierrasData.length) * 100)
+      }));
+      
+      // 5. Obtener datos de afilados por mes (últimos 6 meses)
+      const ahora = new Date();
           const ultimosMeses: Record<string, number> = {};
-          const ahora = new Date();
           const mesesClaves: {clave: string, fecha: Date}[] = [];
           
-          // Inicializar los últimos 6 meses
           for (let i = 5; i >= 0; i--) {
             const fecha = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
             const clave = `${fecha.getFullYear()}-${fecha.getMonth()}`;
@@ -176,252 +352,217 @@ export default function ClienteDashboardPage() {
             mesesClaves.push({clave, fecha});
           }
           
-          // Obtener fechas límite para filtrar solo los últimos 6 meses
           const fechaInicio = new Date(ahora.getFullYear(), ahora.getMonth() - 5, 1);
           const fechaFin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
           
-          // Consulta para contar afilados por mes directamente en la base de datos
-          const { data: afiladosPorMes, error: errorConteo } = await supabase
-            .from('afilados')
-            .select(`
-              id,
-              fecha_afilado,
-              sierra_id
-            `)
-            .in('sierra_id', sierraIds)
-            .gte('fecha_afilado', fechaInicio.toISOString())
-            .lte('fecha_afilado', fechaFin.toISOString());
-          
-          if (errorConteo) {
-            // Error al contar afilados por mes
-            afiladosError = errorConteo;
-          } else {
-
-            
-            // Contar afilados por mes
-            afiladosPorMes?.forEach(afilado => {
-              if (!afilado.fecha_afilado) return;
-              
-              const fecha = new Date(afilado.fecha_afilado);
-              const clave = `${fecha.getFullYear()}-${fecha.getMonth()}`;
-              
-              if (ultimosMeses[clave] !== undefined) {
-                ultimosMeses[clave] += 1;
-              }
-            });
-          }
-          
-          // Consulta para obtener el total de afilados (solo conteo)
-          const { count: totalAfilados, error: errorTotal } = await supabase
-            .from('afilados')
-            .select('id', { count: 'exact', head: true })
-            .in('sierra_id', sierraIds);
-          
-          if (errorTotal) {
-            // Error al obtener total de afilados
-            afiladosError = errorTotal;
-          }
-          
-
-          
-          // Obtener una muestra de afilados para tipos de afilado
-          const { data: afiladosMuestra, error: errorMuestra } = await supabase
-            .from('afilados')
-            .select(`
-              id, 
-              fecha_afilado,
-              sierra_id,
-              tipo_afilado_id,
-              tipos_afilado(nombre)
-            `)
-            .in('sierra_id', sierraIds)
-            .order('fecha_afilado', { ascending: false })
-            .limit(1000);
-          
-          if (errorMuestra) {
-            // Error al obtener muestra de afilados
-            afiladosError = errorMuestra;
-          }
-          
-          // Guardar los datos procesados
-          afiladosDataTemp = {
-            muestra: afiladosMuestra || [],
-            total: totalAfilados || 0,
-            porMes: ultimosMeses,
-            mesesClaves: mesesClaves
-          };
-          
-          // Datos procesados correctamente
+      // Estrategia mejorada: Obtener conteo por mes directamente desde la BD
+      // Esto evita el problema de paginación y da resultados precisos
+      
+      const ultimosMesesArray = mesesClaves.map(async ({clave, fecha}) => {
+        const mesInicio = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+        const mesFin = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
+        
+        
+        const { count, error } = await supabase
+          .from('afilados')
+          .select('id', { count: 'exact', head: true })
+          .in('sierra_id', sierrasData.map(s => s.id))
+          .gte('fecha_afilado', mesInicio.toISOString())
+          .lte('fecha_afilado', mesFin.toISOString());
+        
+        if (error) {
+          console.error(`❌ Error en mes ${clave}:`, error);
+        } else {
         }
+        
+        return {
+          name: `${fecha.toLocaleString('es', { month: 'short' })} ${fecha.getFullYear()}`,
+          cantidad: count || 0,
+          mes: fecha.toLocaleString('es', { month: 'short' }),
+          año: fecha.getFullYear(),
+          trend: 'stable' as 'up' | 'down' | 'stable' // Se calculará después
+        };
+      });
+      
+      // Ejecutar todas las consultas de conteo en paralelo
+      const afiladosPorMesData = await Promise.all(ultimosMesesArray);
+      
+      // Calcular tendencia
+      const valoresMeses = afiladosPorMesData.map(m => m.cantidad);
+      const tendencia = valoresMeses.length >= 2 
+        ? (valoresMeses[valoresMeses.length - 1] > valoresMeses[valoresMeses.length - 2] ? 'up' : 
+           valoresMeses[valoresMeses.length - 1] < valoresMeses[valoresMeses.length - 2] ? 'down' : 'stable')
+        : 'stable';
+      
+      // Actualizar tendencia en todos los meses
+      afiladosPorMesData.forEach(mes => {
+        mes.trend = tendencia as 'up' | 'down' | 'stable';
+      });
           
-        if (afiladosError) throw afiladosError;
+      // Los datos de afilados por mes ya están procesados en afiladosPorMesData
+      
+      // 6. Obtener tipos de afilado (con paginación automática)
+      const afiladosMuestra = await getAllRecordsWithPagination(
+        supabase
+          .from('afilados')
+          .select('tipo_afilado_id, tipos_afilado(nombre)')
+          .in('sierra_id', sierrasData.map(s => s.id))
+          .order('fecha_afilado', { ascending: false }),
+        1000 // Máximo 1000 afilados para análisis de tipos
+      );
+      
+      const afiladosPorTipo: Record<string, number> = {};
+      afiladosMuestra?.forEach(afilado => {
+        const tipoNombre = afilado.tipos_afilado?.nombre || 'Sin tipo';
+        afiladosPorTipo[tipoNombre] = (afiladosPorTipo[tipoNombre] || 0) + 1;
+      });
+      
+      const afiladosPorTipoArray = Object.entries(afiladosPorTipo).map(([name, value]) => ({
+        name,
+        value,
+        percentage: Math.round((value / (afiladosMuestra?.length || 1)) * 100)
+      }));
+      
+      // 7. Calcular próximos afilados
+      const proximosAfilados: ProximosAfilados[] = [];
+      
+      if (sierrasActivas.length > 0) {
+        // Obtener último afilado por sierra (con paginación automática)
+        const ultimosAfilados = await getAllRecordsWithPagination(
+          supabase
+            .from('afilados')
+            .select('sierra_id, fecha_afilado')
+            .in('sierra_id', sierrasActivas.map(s => s.id))
+            .order('fecha_afilado', { ascending: false }),
+          2000 // Máximo 2000 afilados para análisis
+        );
         
-        // 4. Calcular próximos afilados estimados localmente
-        // (ya que no podemos usar la función RPC hasta que se implemente en la base de datos)
-        let proximosAfilados: Array<{
-          id: string;
-          codigo_barras: string;
-          tipo: string;
-          fecha_estimada: string;
-          dias_restantes: number;
-        }> = [];
-        
-        if (sierrasData && afiladosDataTemp?.muestra) {
-          // Agrupar afilados por sierra
           const afiladosPorSierra: Record<string, any[]> = {};
-          
-          afiladosDataTemp.muestra.forEach((afilado: any) => {
+        ultimosAfilados?.forEach(afilado => {
             if (!afiladosPorSierra[afilado.sierra_id]) {
               afiladosPorSierra[afilado.sierra_id] = [];
             }
             afiladosPorSierra[afilado.sierra_id].push(afilado);
           });
           
-          // Para cada sierra, calcular el próximo afilado estimado
           const hoy = new Date();
-          const estimaciones: Array<{
-            id: string;
-            codigo_barras: string;
-            tipo: string;
-            fecha_estimada: string;
-            dias_restantes: number;
-          }> = [];
-          
-          sierrasData
-            .filter(sierra => sierra.activo)
-            .forEach(sierra => {
+        
+        sierrasActivas.forEach(sierra => {
               const afilados = afiladosPorSierra[sierra.id] || [];
-              
               if (afilados.length > 0) {
-                // Ordenar afilados por fecha (más reciente primero)
-                afilados.sort((a, b) => 
-                  new Date(b.fecha_afilado).getTime() - new Date(a.fecha_afilado).getTime()
-                );
-                
                 const ultimoAfilado = afilados[0];
                 const fechaUltimoAfilado = new Date(ultimoAfilado.fecha_afilado);
                 
-                // Asumimos 30 días entre afilados si no hay información específica
-                const diasEntreAfilados = 30;
-                
-                // Calcular fecha estimada del próximo afilado
+            // Calcular próximo afilado (30 días promedio)
                 const fechaEstimada = new Date(fechaUltimoAfilado);
-                fechaEstimada.setDate(fechaEstimada.getDate() + diasEntreAfilados);
+            fechaEstimada.setDate(fechaEstimada.getDate() + 30);
                 
-                // Calcular días restantes
                 const diasRestantes = Math.floor(
                   (fechaEstimada.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
                 );
                 
-                estimaciones.push({
+            proximosAfilados.push({
                   id: sierra.id,
                   codigo_barras: sierra.codigo_barras,
-                  tipo: typeof sierra.tipos_sierra === 'object' && sierra.tipos_sierra !== null
-                    ? (sierra.tipos_sierra as any).nombre || 'Sin tipo'
-                    : 'Sin tipo',
+              tipo: sierra.tipos_sierra?.nombre || 'Sin tipo',
                   fecha_estimada: fechaEstimada.toISOString().split('T')[0],
-                  dias_restantes: diasRestantes
+              dias_restantes: diasRestantes,
+              urgencia: getUrgencia(diasRestantes),
+              ultimoAfilado: fechaUltimoAfilado.toLocaleDateString('es')
                 });
               }
             });
           
-          // Ordenar por días restantes (más urgentes primero) y limitar a 5
-          proximosAfilados = estimaciones
-            .sort((a, b) => a.dias_restantes - b.dias_restantes)
-            .slice(0, 5);
-        }
-          
-        // No necesitamos manejar errores de proximosAfilados porque lo calculamos localmente
-        
-        // Procesar datos de sierras
-        const sierrasActivas = sierrasData?.filter(s => s.activo) || [];
-        const sierrasInactivas = sierrasData?.filter(s => !s.activo) || [];
-        
-        // Agrupar sierras por tipo
-        const sierrasPorTipo: Record<string, number> = {};
-        sierrasData?.forEach(sierra => {
-          // Asegurarnos de que tipos_sierra es un objeto y no un array
-          const tipoNombre = typeof sierra.tipos_sierra === 'object' && sierra.tipos_sierra !== null
-            ? (sierra.tipos_sierra as any).nombre || 'Sin tipo'
-            : 'Sin tipo';
-          sierrasPorTipo[tipoNombre] = (sierrasPorTipo[tipoNombre] || 0) + 1;
+        // Ordenar por urgencia y días restantes
+        proximosAfilados.sort((a, b) => {
+          const urgenciaOrder = { critica: 0, alta: 1, media: 2, baja: 3 };
+          if (urgenciaOrder[a.urgencia] !== urgenciaOrder[b.urgencia]) {
+            return urgenciaOrder[a.urgencia] - urgenciaOrder[b.urgencia];
+          }
+          return a.dias_restantes - b.dias_restantes;
         });
-        
-        // Guardar los datos de afilados en el estado
-        setAfiladosData(afiladosDataTemp);
-        
-        // Procesar datos para el gráfico si tenemos datos de afilados
-        if (!afiladosDataTemp) {
-          // No hay datos de afilados disponibles
-          setStats({
+      }
+      
+      // 8. Construir estadísticas finales
+      const stats: DashboardStats = {
             sierras: {
-              total: sierrasData?.length || 0,
+          total: sierrasData.length,
               activas: sierrasActivas.length,
               inactivas: sierrasInactivas.length,
-              porTipo: Object.entries(sierrasPorTipo).map(([name, value]) => ({ name, value }))
+          porTipo: sierrasPorTipoArray,
+          eficiencia: sierrasData.length > 0 ? Math.round((sierrasActivas.length / sierrasData.length) * 100) : 0
             },
             afilados: {
-              total: 0,
-              ultimosMeses: [],
-              porTipo: []
-            },
-            proximosAfilados: proximosAfilados || []
-          });
-          setLoading(false);
-          return;
-        }
-        
-        // Convertir a formato para gráfico
-        const ultimosMesesArray = afiladosDataTemp?.mesesClaves?.map(({clave, fecha}: {clave: string, fecha: Date}) => ({
-          name: `${fecha.toLocaleString('es', { month: 'short' })} ${fecha.getFullYear()}`,
-          cantidad: afiladosDataTemp?.porMes?.[clave] || 0,
-          mes: fecha.toLocaleString('es', { month: 'short' }),
-          año: fecha.getFullYear()
-        })) || [];
-        
-        // Agrupar afilados por tipo
-        const afiladosPorTipo: Record<string, number> = {};
-        afiladosDataTemp?.muestra?.forEach((afilado: any) => {
-          // Asegurarnos de que tipos_afilado es un objeto y no un array
-          const tipoNombre = typeof afilado.tipos_afilado === 'object' && afilado.tipos_afilado !== null
-            ? (afilado.tipos_afilado as any).nombre || 'Sin tipo'
-            : 'Sin tipo';
-          afiladosPorTipo[tipoNombre] = (afiladosPorTipo[tipoNombre] || 0) + 1;
-        });
-        
-        // Formatear datos para los gráficos
-        setStats({
-          sierras: {
-            total: sierrasData?.length || 0,
-            activas: sierrasActivas.length,
-            inactivas: sierrasInactivas.length,
-            porTipo: Object.entries(sierrasPorTipo).map(([name, value]) => ({ name, value }))
-          },
-          afilados: {
-            total: afiladosDataTemp ? afiladosDataTemp.total : 0,
-            ultimosMeses: ultimosMesesArray || [],
-            porTipo: Object.entries(afiladosPorTipo).map(([name, value]) => ({ name, value }))
-          },
-          proximosAfilados: proximosAfilados || []
-        });
+          total: totalAfilados,
+          ultimosMeses: afiladosPorMesData,
+          porTipo: afiladosPorTipoArray,
+          promedioMensual: Math.round(afiladosPorMesData.reduce((a, b) => a + b.cantidad, 0) / afiladosPorMesData.length),
+          tendencia
+        },
+        proximosAfilados: proximosAfilados.slice(0, 10), // Limitar a 10 más relevantes
+        rendimiento: {
+          eficienciaGeneral: sierrasData.length > 0 ? Math.round((sierrasActivas.length / sierrasData.length) * 100) : 0,
+          sierrasCriticas: proximosAfilados.filter(s => s.urgencia === 'critica').length,
+          afiladosEsteMes: afiladosPorMesData[afiladosPorMesData.length - 1]?.cantidad || 0,
+          promedioDiasAfilado: proximosAfilados.length > 0 
+            ? Math.round(proximosAfilados.reduce((acc, s) => acc + s.dias_restantes, 0) / proximosAfilados.length)
+            : 0
+        },
+        ultimaActualizacion: new Date().toISOString()
+      };
+      
+      // 9. Guardar en caché
+      const cacheData: CacheData = {
+        stats,
+        timestamp: now,
+        empresaId
+      };
+      
+      saveState('cliente-dashboard-cache', cacheData);
+      setDashboardState({ stats, timestamp: now, empresaId });
+      setLastRefresh(new Date());
+      
       } catch (err: any) {
-        // Error al cargar datos del dashboard
-        setDatosEjemplo();
+      console.error('❌ Error al cargar dashboard:', err);
+      setError(err.message || 'Error al cargar datos del dashboard');
       } finally {
         setLoading(false);
+      setRefreshing(false);
       }
-    };
+  }, [session, loadState, saveState, setDashboardState, getUrgencia]);
     
+  // Efecto para cargar datos iniciales
+  useEffect(() => {
     fetchDashboardData();
-  }, [session]);
+  }, [fetchDashboardData]);
 
+  // Función para refrescar manualmente
+  const handleRefresh = useCallback(() => {
+    fetchDashboardData(true);
+  }, [fetchDashboardData]);
+
+  // Función para limpiar caché
+  const handleClearCache = useCallback(() => {
+    saveState('cliente-dashboard-cache', null);
+    setDashboardState({ stats: null, timestamp: 0, empresaId: '' });
+    fetchDashboardData(true);
+  }, [saveState, setDashboardState, fetchDashboardData]);
+
+  // Loading state optimizado
   if (loading) {
     return (
       <div className="py-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Skeleton className="h-8 w-64 mb-6" />
-          <div className="grid grid-cols-1 gap-8">
-            <Skeleton className="h-96 rounded-xl" />
+          <div className="flex items-center justify-between mb-6">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-32 rounded-xl" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <Skeleton className="h-96 rounded-xl" />
             <Skeleton className="h-96 rounded-xl" />
           </div>
@@ -430,6 +571,7 @@ export default function ClienteDashboardPage() {
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="py-6">
@@ -441,164 +583,217 @@ export default function ClienteDashboardPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+          <div className="mt-4">
+            <Button onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Reintentar
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
+  const stats = processedStats;
+
   return (
     <div className="py-6">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-6">
+        {/* Header con controles */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
           Panel de Cliente
         </h1>
-        
-        {/* Tarjetas informativas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {/* Total de sierras */}
-          <Card>
+            <p className="text-sm text-muted-foreground mt-1">
+              {lastRefresh && `Última actualización: ${lastRefresh.toLocaleTimeString('es')}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh} 
+              disabled={refreshing}
+            >
+              {refreshing ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Actualizar
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleClearCache}
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              Limpiar Caché
+            </Button>
+          </div>
+        </div>
+
+        {/* Métricas principales */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Eficiencia General */}
+          <Card className="relative overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center">
-                <Scissors className="mr-2 h-5 w-5" />
-                Total de Sierras
+                <Target className="mr-2 h-5 w-5 text-blue-600" />
+                Eficiencia General
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stats?.sierras.total || 0}</div>
+              <div className="text-3xl font-bold text-blue-600">{stats?.rendimiento.eficienciaGeneral || 0}%</div>
               <div className="text-sm text-muted-foreground mt-1">
-                Sierras registradas en el sistema
+                Sierras activas vs total
               </div>
+              <Progress value={stats?.rendimiento.eficienciaGeneral || 0} className="mt-2" />
             </CardContent>
           </Card>
 
-          {/* Sierras activas */}
-          <Card>
+          {/* Sierras Críticas */}
+          <Card className="relative overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center">
-                <CircleCheck className="mr-2 h-5 w-5 text-green-600" />
-                Sierras Activas
+                <AlertCircle className="mr-2 h-5 w-5 text-red-600" />
+                Sierras Críticas
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-600">{stats?.sierras.activas || 0}</div>
+              <div className="text-3xl font-bold text-red-600">{stats?.rendimiento.sierrasCriticas || 0}</div>
               <div className="text-sm text-muted-foreground mt-1">
-                {stats?.sierras.total ? (
-                  <span>
-                    {Math.round((stats.sierras.activas / stats.sierras.total) * 100)}% del total
-                  </span>
-                ) : 'Sin datos'}
+                Requieren atención inmediata
+              </div>
+              {stats?.rendimiento?.sierrasCriticas && stats.rendimiento.sierrasCriticas > 0 && (
+                <Badge variant="destructive" className="mt-2">
+                  Atención Requerida
+                </Badge>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Afilados Este Mes */}
+          <Card className="relative overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center">
+                <BarChart3 className="mr-2 h-5 w-5 text-green-600" />
+                Afilados Este Mes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600">{stats?.rendimiento.afiladosEsteMes || 0}</div>
+              <div className="text-sm text-muted-foreground mt-1 flex items-center">
+                {getTrendIcon(stats?.afilados.tendencia || 'stable')}
+                <span className="ml-1">vs mes anterior</span>
               </div>
             </CardContent>
           </Card>
 
-          {/* Sierras inactivas */}
-          <Card>
+          {/* Promedio Días */}
+          <Card className="relative overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center">
-                <CircleX className="mr-2 h-5 w-5 text-red-600" />
-                Sierras Inactivas
+                <Clock className="mr-2 h-5 w-5 text-purple-600" />
+                Promedio Días
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-red-600">{stats?.sierras.inactivas || 0}</div>
+              <div className="text-3xl font-bold text-purple-600">{stats?.rendimiento.promedioDiasAfilado || 0}</div>
               <div className="text-sm text-muted-foreground mt-1">
-                {stats?.sierras.total ? (
-                  <span>
-                    {Math.round((stats.sierras.inactivas / stats.sierras.total) * 100)}% del total
-                  </span>
-                ) : 'Sin datos'}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Total de afilados */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
-                <FileText className="mr-2 h-5 w-5 text-blue-600" />
-                Total de Afilados
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{stats?.afilados.total || 0}</div>
-              <div className="text-sm text-muted-foreground mt-1">
-                Afilados registrados en el sistema
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Afilados por mes (últimos 3 meses) */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
-                <CalendarDays className="mr-2 h-5 w-5 text-purple-600" />
-                Afilados Recientes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {stats?.afilados.ultimosMeses && stats.afilados.ultimosMeses.length > 0 ? (
-                  stats.afilados.ultimosMeses.slice(-3).reverse().map((mes, index) => (
-                    <div key={index} className="flex justify-between items-center">
-                      <div className="font-medium">{mes.name}</div>
-                      <div className="font-bold text-purple-600">{mes.cantidad}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-muted-foreground">No hay datos disponibles</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Tipos de sierra */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
-                <PieChartIcon className="mr-2 h-5 w-5 text-orange-600" />
-                Tipos de Sierra
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {stats?.sierras.porTipo && stats.sierras.porTipo.length > 0 ? (
-                  stats.sierras.porTipo.slice(0, 5).map((tipo, index) => (
-                    <div key={index} className="flex justify-between items-center">
-                      <div className="font-medium">{tipo.name || 'Sin tipo'}</div>
-                      <div className="font-bold text-orange-600">{tipo.value}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-muted-foreground">No hay datos disponibles</div>
-                )}
+                Días hasta próximo afilado
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Próximos afilados */}
+        {/* Estadísticas detalladas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          {/* Sierras por Tipo */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <PieChartIcon className="mr-2 h-5 w-5" />
+                Distribución de Sierras
+              </CardTitle>
+              <CardDescription>
+                Total: {stats?.sierras.total || 0} sierras registradas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {stats?.sierras.porTipo && stats.sierras.porTipo.length > 0 ? (
+                  stats.sierras.porTipo.map((tipo, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div 
+                          className="w-3 h-3 rounded-full mr-3" 
+                          style={{ backgroundColor: COLORS[Object.keys(COLORS)[index % Object.keys(COLORS).length] as keyof typeof COLORS] }}
+                        />
+                        <span className="font-medium">{tipo.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold">{tipo.value}</span>
+                        <Badge variant="secondary">{tipo.percentage}%</Badge>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-muted-foreground py-8">
+                    No hay datos de sierras disponibles
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Afilados por Mes - Gráfico de Tendencia */}
+          <AfiladosTendenciaChart 
+            data={stats?.afilados.ultimosMeses || []} 
+            promedio={stats?.afilados.promedioMensual || 0} 
+          />
+        </div>
+
+        {/* Próximos Afilados */}
         <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold flex items-center">
             <Clock className="mr-2 h-5 w-5" />
             Próximos Afilados Estimados
           </h2>
+            <Badge variant="outline">
+              {stats?.proximosAfilados.length || 0} sierras programadas
+            </Badge>
+          </div>
           
           {stats?.proximosAfilados && stats.proximosAfilados.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {stats.proximosAfilados.map((afilado, index) => (
-                <Card key={index} className={`${afilado.dias_restantes < 0 ? 'border-red-500' : afilado.dias_restantes < 7 ? 'border-yellow-500' : 'border-green-500'}`}>
+                <Card key={index} className={`transition-all hover:shadow-md ${getUrgenciaColor(afilado.urgencia)}`}>
                   <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{afilado.codigo_barras}</CardTitle>
+                      <Badge variant={afilado.urgencia === 'critica' ? 'destructive' : 
+                                   afilado.urgencia === 'alta' ? 'destructive' : 
+                                   afilado.urgencia === 'media' ? 'secondary' : 'default'}>
+                        {afilado.urgencia.toUpperCase()}
+                      </Badge>
+                    </div>
                     <CardDescription>{afilado.tipo}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="text-sm font-medium">Fecha estimada:</div>
-                        <div className="font-bold">{new Date(afilado.fecha_estimada).toLocaleDateString('es')}</div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Fecha estimada:</span>
+                        <span className="font-bold">{new Date(afilado.fecha_estimada).toLocaleDateString('es')}</span>
                       </div>
-                      <div className={`text-lg font-bold ${afilado.dias_restantes < 0 ? 'text-red-600' : afilado.dias_restantes < 7 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Último afilado:</span>
+                        <span className="text-sm">{afilado.ultimoAfilado}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Días restantes:</span>
+                        <span className={`font-bold ${afilado.dias_restantes < 0 ? 'text-red-600' : 
+                                                      afilado.dias_restantes < 7 ? 'text-yellow-600' : 'text-green-600'}`}>
                         {afilado.dias_restantes < 0 ? 'Atrasado' : `${afilado.dias_restantes} días`}
+                        </span>
                       </div>
                     </div>
                   </CardContent>
@@ -609,11 +804,27 @@ export default function ClienteDashboardPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center text-muted-foreground">
-                  No hay próximos afilados estimados disponibles
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No hay próximos afilados estimados disponibles</p>
+                  <p className="text-sm mt-2">Los datos se actualizarán cuando haya más información de afilados</p>
                 </div>
               </CardContent>
             </Card>
           )}
+        </div>
+
+        {/* Información de caché */}
+        <div className="bg-muted/50 rounded-lg p-4">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex items-center">
+              <Zap className="h-4 w-4 mr-2" />
+              <span>Datos en caché para carga más rápida</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span>Empresa ID: {dashboardState.empresaId}</span>
+              <span>Actualizado: {new Date(dashboardState.timestamp).toLocaleTimeString('es')}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

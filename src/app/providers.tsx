@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { ThemeProvider } from '@/components/theme-provider';
+import { AuthProviderWrapper } from '@/components/auth/AuthProviderWrapper';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -10,7 +11,9 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      {children}
+      <AuthProviderWrapper>
+        {children}
+      </AuthProviderWrapper>
     </ThemeProvider>
   );
 }
